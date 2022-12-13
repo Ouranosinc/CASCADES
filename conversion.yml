@@ -1,0 +1,17 @@
+realm: atmos
+indicators:
+  evspsblpot:
+    base: potential_evapotranspiration
+    parameters:
+      method: mcguinnessbordne05
+      tas:
+        kind: 0
+    cf_attrs:
+      - var_name: evspsblpot
+  water_budget:
+    base: water_budget
+    parameters:
+      evspsblpot:
+        kind: 0
+    cf_attrs:
+      - var_name: wb

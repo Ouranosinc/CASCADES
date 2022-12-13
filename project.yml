@@ -1,0 +1,33 @@
+project:
+  title: CASCADES
+  description: Production de trames narratives pour le projet CASCAES
+
+tasks:
+  extract: False
+  indicators: True
+
+region:
+  name: SouthQC
+  method: bbox
+  buffer: 1.5
+  bbox:
+    lon_bnds: [-83, -55.5]
+    lat_bnds: [43, 54]
+
+spei:
+  cal_period: ['1991', '2020']
+
+dask:
+  n_workers: 6
+  threads_per_worker: 3
+  memory_limit: 10GB
+
+chunks:
+  extract:
+    time: 1000
+    lat: -1
+    lon: -1
+  indicators:
+    time: 100
+    lat: -1
+    lon: -1

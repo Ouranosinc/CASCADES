@@ -1,0 +1,22 @@
+realm: atmos
+indicators:
+  spei1:
+    base: spei
+    parameters:
+      window: 1
+  spei3:
+    base: spei
+    parameters:
+      window: 3
+  spei6:
+    base: spei
+    parameters:
+      window: 6
+  spei9:
+    base: spei
+    parameters:
+      window: 9
+  spei12:
+    base: spei
+    parameters:
+      window: 12
