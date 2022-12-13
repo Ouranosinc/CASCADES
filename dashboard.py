@@ -38,9 +38,6 @@ with tab1:
 
         cols = st.columns(2)
 
-        load_config('paths_neree.yml', 'config.yml', verbose=(__name__ == '__main__'), reset=True)
-        pcat = ProjectCatalog(CONFIG['paths']['project_catalog'])
-
         # choose id
         option_id = cols[0].selectbox('Id',pcat.search(type=['simulations', 'simulation'], processing_level = 'diag-improved').df.id.unique())
 

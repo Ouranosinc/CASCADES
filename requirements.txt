@@ -1,0 +1,14 @@
+pip
+altair
+bokeh==2.4.3
+holoviews
+hvplot
+matplotlib
+netCDF4
+numpy
+pandas
+panel
+pillow
+streamlit
+xarray
+zarr
