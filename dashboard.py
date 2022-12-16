@@ -1,20 +1,18 @@
 # app is here: https://share.streamlit.io/ouranosinc/info-crue-cmip6/main/dashboard.py
 import streamlit as st
-import holoviews as hv
-from pathlib import Path
-import pandas as pd
 import numpy as np
 import xarray as xr
+import cartopy
 from matplotlib import pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+import matplotlib
 import glob
-import hvplot.xarray
-from matplotlib import colors
+import geopandas as gpd
 
 
 st.set_page_config(layout="wide")
 
 st.title('CASCADES')
+st.header("Conséquences Attendues Survenant en Contexte d’Aggravation des Déficits d’Eau Sévères au Québec")
 
 @st.cache(hash_funcs={xr.core.dataset.Dataset: id},ttl=60)
 def load_zarr(path):
@@ -25,368 +23,233 @@ def load_nc(path):
     return xr.open_dataset(path,decode_timedelta= False)
 
 
-useCat = st.checkbox("use catalog (only for local version)")
+def make_spatial_distribution_plot(ax, ds, levels, cmap, lon_bnds, lat_bnds, title=None, ylabel=None, add_cbar=False, shp=None):
 
-tab1, tab2, tab3, tab4 = st.tabs(["ERA5_land"])
+    """
+    Produces maps (spatial distributions) of data.
+
+    Parameters
+    ----------
+    ds : xarray.DataArray
+        Data to be plotted.
+    levels : numpy.ndarray
+        Levels used for the color map.
+    cmap : matplotlib.colors.LinearSegmentedColormap
+        Colors used for the color map.
+    lowflow_epicenter_lat : float
+        Latitude of the epicenter of the lowflow.
+    lowflow_epicenter_lon : float
+        Longitude of the epicenter of the lowflow.
+    cmap_label : str
+        Label for the color map.
+    lowflow_epicenter_label : str
+        Label for the lowflow epicenter.
+    title : str
+        Title of map.
+    filename : str
+        File name and path for the plot.
+
+    Note
+    ----
+    This function was used to produce the climatology, anomaly and SPEI figures.
+    """
+
+    ax.coastlines(zorder=2)
+    ax.add_feature(cartopy.feature.OCEAN, zorder=1)
+    ax.add_feature(cartopy.feature.LAKES, edgecolor="black")
+
+    ds.plot.imshow(ax=ax, levels=levels, colors=cmap, extend='both', zorder=0, add_colorbar=add_cbar)
+
+    if shp is not None:
+        for s in shp:
+            s.plot(facecolor='none', edgecolor='k', linewidth=0.6, ax=ax, zorder=2)
+
+    plt.xlim([lon_bnds[0], lon_bnds[1]])
+    plt.ylim([lat_bnds[0], lat_bnds[1]])
+
+    # Cartopy hijacks ax labels
+    ax.text(-0.07, 0.55, ylabel, va='bottom', ha='center',
+            rotation='vertical', rotation_mode='anchor',
+            transform=ax.transAxes)
+    plt.title(title)
+
+
+def make_cmap(name, n_cluster):
+    # Custom color maps (not in matplotlib). The order assumes a vertical color bar.
+    hex_wh  = "#ffffff"  # White.
+    hex_gy  = "#808080"  # Grey.
+    hex_gr  = "#008000"  # Green.
+    hex_yl  = "#ffffcc"  # Yellow.
+    hex_or  = "#f97306"  # Orange.
+    hex_br  = "#662506"  # Brown.
+    hex_rd  = "#ff0000"  # Red.
+    hex_pi  = "#ffc0cb"  # Pink.
+    hex_pu  = "#800080"  # Purple.
+    hex_bu  = "#0000ff"  # Blue.
+    hex_lbu = "#7bc8f6"  # Light blue.
+    hex_lbr = "#d2b48c"  # Light brown.
+    hex_sa  = "#a52a2a"  # Salmon.
+    hex_tu  = "#008080"  # Turquoise.
+
+    code_hex_l = {
+        "Pinks": [hex_wh, hex_pi],
+        "PiPu": [hex_pi, hex_wh, hex_pu],
+        "Browns": [hex_wh, hex_br],
+        "Browns_r": [hex_br, hex_wh],
+        "YlBr": [hex_yl, hex_br],
+        "BrYl": [hex_br, hex_yl],
+        "BrYlGr": [hex_br, hex_yl, hex_gr],
+        "GrYlBr": [hex_gr, hex_yl, hex_br],
+        "YlGr": [hex_yl, hex_gr],
+        "GrYl": [hex_gr, hex_yl],
+        "BrWhGr": [hex_br, hex_wh, hex_gr],
+        "GrWhBr": [hex_gr, hex_wh, hex_br],
+        "TuYlSa": [hex_tu, hex_yl, hex_sa],
+        "YlTu": [hex_yl, hex_tu],
+        "YlSa": [hex_yl, hex_sa],
+        "LBuWhLBr": [hex_lbu, hex_wh, hex_lbr],
+        "LBlues": [hex_wh, hex_lbu],
+        "BuYlRd": [hex_bu, hex_yl, hex_rd],
+        "LBrowns": [hex_wh, hex_lbr],
+        "LBuYlLBr": [hex_lbu, hex_yl, hex_lbr],
+        "YlLBu": [hex_yl, hex_lbu],
+        "YlLBr": [hex_yl, hex_lbr],
+        "YlBu": [hex_yl, hex_bu],
+        "Turquoises": [hex_wh, hex_tu],
+        "Turquoises_r": [hex_tu, hex_wh],
+        "PuYlOr": [hex_pu, hex_yl, hex_or],
+        "YlOrRd": [hex_yl, hex_or, hex_rd],
+        "YlOr": [hex_yl, hex_or],
+        "YlPu": [hex_yl, hex_pu],
+        "PuYl": [hex_pu, hex_yl],
+        "GyYlRd": [hex_gy, hex_yl, hex_rd],
+        "RdYlGy": [hex_rd, hex_yl, hex_gy],
+        "YlGy": [hex_yl, hex_gy],
+        "GyYl": [hex_gy, hex_yl],
+        "YlRd": [hex_yl, hex_rd],
+        "RdYl": [hex_rd, hex_yl],
+        "GyWhRd": [hex_gy, hex_wh, hex_rd]}
+
+    hex_l = None
+    if name in list(code_hex_l.keys()):
+        hex_l = code_hex_l[name]
+
+    # List of positions.
+    if len(hex_l) == 2:
+        pos_l = [0.0, 1.0]
+    else:
+        pos_l = [0.0, 0.5, 1.0]
+
+    # Reverse hex list.
+    if "_r" in name:
+        hex_l.reverse()
+
+    # Build colour map.
+    rgb_l = [rgb_to_dec(hex_to_rgb(i)) for i in hex_l]
+    if pos_l:
+        pass
+    else:
+        pos_l = list(np.linspace(0, 1, len(rgb_l)))
+    cdict = dict()
+    for num, col in enumerate(["red", "green", "blue"]):
+        col_l = [[pos_l[i], rgb_l[i][num], rgb_l[i][num]] for i in range(len(pos_l))]
+        cdict[col] = col_l
+
+    return matplotlib.colors.LinearSegmentedColormap("custom_cmap", segmentdata=cdict, N=n_cluster)
+
+
+def hex_to_rgb(
+    value: str
+):
+    value = value.strip("#")
+    lv = len(value)
+
+    return tuple(int(value[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
+
+
+def rgb_to_dec(
+    value: [int]
+):
+    return [v/256 for v in value]
+
+
+useCat = st.checkbox("Use Local Data")
+
+# Tabs
+tab1, tab2 = st.tabs(["Historique", "TBD"])
+
 with tab1:
 
-    #load data
+    st.header("ERA5-Land")
+    st.markdown("Période de calage du SPEI: 1991-2020")
+    speis = [1, 3, 6, 9, 12]
+    levels = np.arange(-2.5, 3, 0.5)
+    cmap = make_cmap("BrWhGr", 25)
+    months = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+
+    # load data
     if useCat:
         import xscen as xs
         xs.load_config("project.yml", "paths.yml", "cfg.yml", reset=True)
         pcat = xs.ProjectCatalog(xs.CONFIG["project"]["path"], create=False)
 
-        cols = st.columns(2)
+        ds = pcat.search(processing_level="indicators", source="ERA5-Land").to_dask()
 
-        # choose id
-        option_id = cols[0].selectbox('Id',pcat.search(type=['simulations', 'simulation'], processing_level = 'diag-improved').df.id.unique())
-
-        option_domain = cols[1].selectbox('Domain', pcat.search(type=['simulations', 'simulation']).df.domain.unique())
-
-        #load all properties from ref, sim, scen
-        ref = pcat.search( processing_level='diag-ref-prop', domain=option_domain).to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        sim = pcat.search(id= option_id, processing_level='diag-sim-prop', domain=option_domain).to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        scen = pcat.search(id= option_id, processing_level='diag-scen-prop', domain=option_domain).to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        #get bias
-        bias_sim = pcat.search(id=option_id, processing_level='diag-sim-meas', domain=option_domain).to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        bias_scen = pcat.search(id=option_id, processing_level='diag-scen-meas', domain=option_domain).to_dask(xarray_open_kwargs={'decode_timedelta':False})
-
-        #get measures summary
-        hm = pcat.search( id=option_id,processing_level='diag-heatmap').to_dask()
-        imp = pcat.search(id=option_id,processing_level='diag-improved').to_dask()
-
+        regions = glob.glob(f"{xs.CONFIG['gis']}*.shp")
+        sf = [gpd.read_file(shp) for shp in regions]
 
     else:
         raise NotImplementedError()
 
-        cols = st.columns(3)
-        #option_id = st.selectbox('id',[x[30:-5] for x in glob.glob('dashboard_data/diag_scen_bias_*')])
-        ids = [x[30:-6] for x in glob.glob('dashboard_data/diag-scen-meas_*')]
+    # Selections
+    cols = st.columns(3)
+    lon_bnds = cols[0].slider('Longitude', -83., -55.5, (-83., -55.5))
+    cols = st.columns(3)
+    lat_bnds = cols[0].slider('Latitude', 43., 54., (43., 54.))
+    useSom = st.checkbox("Minimum: Juin à octobre", True)
+    cols = st.columns(2)
 
-        models = sorted(set([y.split('_')[3] for y in ids ]))
-        option_model = cols[0].selectbox('Models', models)
-        ids_of_model = [x for x in ids if option_model in x]
-        exps = sorted(set([y.split('_')[4] for y in ids_of_model]))
-        option_ssp = cols[1].selectbox('Experiments',exps)
+    option_y = cols[0].selectbox('Année', np.arange(1970, 2022), index=51)
+    option_hide = cols[1].selectbox("Niveau d\'intensité minimal (SPEI)", ["Tout afficher", "≥ 1 (Modéré)", "≥ 1.5 (Sévère)", "≥ 2 (Extrême)", "≥ 2.5 (Très extrême)"], index=3)
+    hide = 0 if option_hide == "Tout afficher" else eval(option_hide.split("≥ ")[1].split(" (")[0])
 
-        ids_of_model_exps = [x for x in ids if option_model in x and option_ssp in x]
-        members = sorted(set([y.split('_')[5] for y in ids_of_model_exps]))
-        option_member = cols[2].selectbox('Members', members)
+    if useSom is True:
+        # Plot the minimum of all SPEI between June and October
+        cols = st.columns(len(speis))
+        titles = ["min(SPEI-1)", "min(SPEI-3)", "min(SPEI-6)", "min(SPEI-9)", "min(SPEI-12)"]
 
-        option_id = [x for x in ids if option_model in x and option_ssp in x and option_member in x][0]
+        for s in range(len(speis)):
+            fig, _ = plt.subplots(1, 1)
+            da = ds[f"spei{speis[s]}"].sel(time=slice(f"{option_y}-06-01", f"{option_y}-10-01")).min(dim="time")
+            da = da.where(np.abs(da) > hide)
+            title = titles[s]
 
-        ref = load_nc(f'dashboard_data/diag_ref_ECMWF_ERA5-Land_NAM_qc.nc')
-        sim = load_nc(f'dashboard_data/diag-sim-prop_{option_id}_qc.nc')
-        scen = load_nc(f'dashboard_data/diag-scen-prop_{option_id}_qc.nc')
-        bias_sim = load_nc(f'dashboard_data/diag-sim-meas_{option_id}_qc.nc')
-        bias_scen = load_nc(f'dashboard_data/diag-scen-meas_{option_id}_qc.nc')
+            ax = plt.subplot(1, 1, 1, projection=cartopy.crs.PlateCarree())
+            make_spatial_distribution_plot(ax, da, levels=levels, cmap=cmap, title=title, shp=sf, lon_bnds=lon_bnds, lat_bnds=lat_bnds)
+            plt.tight_layout()
 
-        hm = load_nc(f'dashboard_data/diag-heatmap_{option_id}_qc.nc')
-        imp = load_nc(f'dashboard_data/diag-improved_{option_id}_qc.nc')
-
-    cols2=st.columns(2)
-    # choose properties
-    option_var = cols2[0].selectbox('Input Variables',[ 'Maximum Temperature','Minimum Temperature', 'Precipitation'])
-    varlong2short = {'Minimum Temperature':'tasmin', 'Maximum Temperature':'tasmax', 'Precipitation':'pr' }
-    props_of_var= [x for x in scen.data_vars if f'{varlong2short[option_var]},' in scen[x].attrs['history'] ]
-
-
-    def show_long_name(name):
-        return f"{scen[name].attrs['long_name']} ({name})"
-
-    option_prop = cols2[1].selectbox('Properties of the variable',sorted(props_of_var), format_func = show_long_name)
-    prop_sim = sim[option_prop]
-    prop_ref = ref[option_prop]
-    prop_scen = scen[option_prop]
-    bias_scen_prop = bias_scen[option_prop]
-    bias_sim_prop = bias_sim[option_prop]
-
-    if 'season' in prop_sim.coords:
-        option_season =  cols2[1].selectbox('Season',prop_sim.season.values)
-        prop_sim = prop_sim.sel(season=option_season)
-        prop_ref = prop_ref.sel(season=option_season)
-        prop_scen = prop_scen.sel(season=option_season)
-        bias_scen_prop = bias_scen_prop.sel(season=option_season)
-        bias_sim_prop = bias_sim_prop.sel(season=option_season)
-
-    #colormap
-    maxi_prop = max(prop_ref.max().values, prop_scen.max().values, prop_sim.max().values)
-    mini_prop = min(prop_ref.min().values, prop_scen.min().values, prop_sim.min().values)
-    maxi_bias = max(abs(bias_scen_prop).max().values, abs(bias_sim_prop).max().values)
-    cmap='viridis_r' if option_var == 'Precipitation' else 'plasma'
-    cmap_bias ='BrBG' if option_var == 'Precipitation' else 'coolwarm'
-
-    long_name=prop_sim.attrs['long_name']
-
-    col1, col2, col3 = st.columns([6,3,4])
-    w, h = 300, 300
-    wb, hb = 400, 300
-
-    measure_name = bias_sim_prop.attrs['long_name']
-    # fix range of colorbar
-    if 'ratio' in measure_name : #center around 1 for ratio
-        maxi_rat = maxi_bias
-        mini_rat = max(abs(bias_scen_prop).min().values, abs(bias_sim_prop).min().values)
-        max_deviation_from_1 = max(abs(1-maxi_rat),abs(1-mini_rat))
-        mini, maxi = 1-max_deviation_from_1, 1+max_deviation_from_1
-
-    else: # center around 0 for bias
-        mini, maxi = -maxi_bias, maxi_bias
-
-    col1.write(hv.render(prop_ref.hvplot(title=f'REF\n{long_name}',width=600, height=616, cmap=cmap, clim=(mini_prop,maxi_prop))))
-    col2.write(hv.render(prop_sim.hvplot(width=w, height=h, title=f'SIM', cmap=cmap, clim=(mini_prop,maxi_prop)).opts(colorbar=False)))
-    col2.write(hv.render(prop_scen.hvplot(width=w, height=h, title=f'SCEN', cmap=cmap, clim=(mini_prop,maxi_prop)).opts(colorbar=False)))
-    col3.write(hv.render(bias_sim_prop.hvplot(width=wb, height=hb, title=f'SIM {measure_name}', cmap=cmap_bias,clim=(mini, maxi))))
-    col3.write(hv.render(bias_scen_prop.hvplot(width=wb, height=hb, title=f'SCEN {measure_name}', cmap=cmap_bias,clim=(mini,maxi))))
-
-
-    #plot the heat map
-    fig_hmap, ax = plt.subplots(figsize=(7,3))
-    cmap=plt.cm.RdYlGn_r
-    norm = colors.BoundaryNorm(np.linspace(0,1,4), cmap.N)
-    im = ax.imshow(hm.heatmap.values, cmap=cmap, norm=norm)
-    ax.set_xticks(ticks = np.arange(len(hm.properties)), labels=hm.properties.values, rotation=45,ha='right')
-    ax.set_yticks(ticks = np.arange(len(hm.datasets)), labels=[x.split('.')[2].split('-')[1] for x in hm.datasets.values])
-    divider = make_axes_locatable(ax)
-    cax = divider.new_vertical(size='15%', pad=0.4)
-    fig_hmap.add_axes(cax)
-    cbar = fig_hmap.colorbar(im, cax=cax, ticks=[0, 1], orientation='horizontal')
-    cbar.ax.set_xticklabels(['best', 'worst'])
-    plt.title('Normalised mean measure of properties')
-    fig_hmap.tight_layout()
-
-    #plot improved
-    percent_better= imp.improved_grid_points.values
-    percent_better=np.reshape(np.array(percent_better), (1, len(hm.properties)))
-    fig_per, ax = plt.subplots(figsize=(7, 3))
-    cmap=plt.cm.RdYlGn
-    norm = colors.BoundaryNorm(np.linspace(0,1,100), cmap.N)
-    im = ax.imshow(percent_better, cmap=cmap, norm=norm)
-    ax.set_xticks(ticks=np.arange(len(hm.properties)), labels= imp.properties.values, rotation=45,ha='right')
-    ax.set_yticks(ticks=np.arange(1), labels=[''])
-
-    divider = make_axes_locatable(ax)
-    cax = divider.new_vertical(size='15%', pad=0.4)
-    fig_per.add_axes(cax)
-    cbar = fig_per.colorbar(im, cax=cax, ticks=np.arange(0,1.1,0.1), orientation='horizontal')
-    plt.title('Fraction of grid cells of scen that improved or stayed the same compared to sim')
-    fig_per.tight_layout()
-
-
-    col1, col2 = st.columns([1,1])
-
-    col1.write(fig_hmap)
-    col2.write(fig_per)
-
-with tab2:
-    cols = st.columns([3,1,1])
-    #option_type=  cols[0].selectbox('Type',['delta', 'absolute'])
-
-    # load data
-    if useCat:
-        #from xscen.config import CONFIG, load_config
-        #from xscen.catalog import ProjectCatalog
-
-        #load_config('paths_neree.yml', 'config.yml', verbose=(__name__ == '__main__'),reset=True)
-        #pcat = ProjectCatalog(CONFIG['paths']['project_catalog'])
-
-        # get warminglevel
-        wl15 = pcat.search(processing_level='delta-+1.5C-selection').to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        wl2 = pcat.search(processing_level='delta-+2C-selection').to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        wl3 = pcat.search(processing_level='delta-+3C-selection').to_dask(xarray_open_kwargs={'decode_timedelta':False})
-
-
-        #ensemble_sizes= {x.horizon.values[0]:x.horizon.attrs['ensemble_size'] for x in wls.values()}
-        #wl = xr.concat(wls.values(), dim='horizon')
-    else:
-        ensemble_sizes={}
-
-
-        wl15 = load_zarr(f'dashboard_data/ensemble-deltas-1.5_CMIP6_ScenarioMIP_qc.zarr')
-        wl2 = load_zarr(f'dashboard_data/ensemble-deltas-2_CMIP6_ScenarioMIP_qc.zarr')
-        wl3 = load_zarr(f'dashboard_data/ensemble-deltas-3_CMIP6_ScenarioMIP_qc.zarr')
-
-
-        #ensemble_sizes[f"+{h}C"]=cur_wl.horizon.attrs['ensemble_size']
-            #wls.append(cur_wl)
-        #wl = xr.concat(wls, dim='horizon')
-    #choose data
-    def show_long_name(name):
-        for var in wl2.data_vars:
-            if name in var:
-                return f"{wl2[var].attrs['long_name']} ({name})"
-
-
-    option_ind_wl = cols[0].selectbox('Indicateurs',set([x.split('_delta')[0] for x in wl2.data_vars]), format_func = show_long_name)
-    option_stats_wl =  cols[1].selectbox('Statistiques', ['mean', 'max','min', 'stdev','p10', 'p50', 'p190'])
-    option_season_wl = cols[2].selectbox('Saisons', wl2.season.values)
-    complete_var = f"{option_ind_wl}_delta_1991_2020_{option_stats_wl}"
-
-
-    #plot data
-    cmap = 'viridis_r' if wl2[complete_var].attrs['standard_name'] == 'precipitation_flux' else 'plasma'
-    vmin = np.min([cur_wl[complete_var].sel(season=option_season_wl).min().values for cur_wl in [wl15, wl2, wl3]])
-    vmax = np.max([cur_wl[complete_var].sel(season=option_season_wl).max().values for cur_wl in [wl15, wl2, wl3]])
-
-
-    col3 = st.columns(3)
-    for i, cur_wl in enumerate([wl15, wl2, wl3]):
-        select_wl = cur_wl[complete_var].sel(season=option_season_wl).isel(horizon=0)
-        col3[i].write(
-            hv.render(select_wl.hvplot(cmap=cmap,
-                                                      width=450,
-                                                      height=350,
-                                                      clim=(vmin, vmax))))
-        col3[i].write(f"Nombre de réalisations de l'ensemble: {cur_wl.attrs['ensemble_size']}")
-    st.write( f"Warming levels are calculated from the {select_wl.horizon.attrs['baseline']} baseline.")
-
-with tab3:
-    cols = st.columns([3,1,1])
-
-    # load data
-    if useCat:
-
-        # get warminglevel
-        s1 = pcat.search(processing_level='delta-ssp126-2081-2100-selection').to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        s2 = pcat.search(processing_level='delta-ssp245-2081-2100-selection').to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        s3 = pcat.search(processing_level='delta-ssp370-2081-2100-selection').to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        s4 = pcat.search(processing_level='delta-ssp585-2081-2100-selection').to_dask(xarray_open_kwargs={'decode_timedelta':False})
+            cols[s].pyplot(fig)
 
     else:
-        ensemble_sizes={}
+        # Plot every month from June to October
+        for month in [6, 7, 8, 9, 10]:
+            cols = st.columns(len(speis))
 
-        # wl15 = load_zarr(f'dashboard_data/ensemble-deltas-1.5_CMIP6_ScenarioMIP_qc.zarr')
-        # wl2 = load_zarr(f'dashboard_data/ensemble-deltas-2_CMIP6_ScenarioMIP_qc.zarr')
-        # wl3 = load_zarr(f'dashboard_data/ensemble-deltas-3_CMIP6_ScenarioMIP_qc.zarr')
+            for s in range(len(speis)):
 
-        #ensemble_sizes[f"+{h}C"]=cur_wl.horizon.attrs['ensemble_size']
-            #wls.append(cur_wl)
-        #wl = xr.concat(wls, dim='horizon')
+                titles = [months[month - 1],
+                          f"{months[(month - 2 - 1)%12]} à {months[month - 1]}",
+                          f"{months[(month - 5 - 1)%12]} à {months[month - 1]}",
+                          f"{months[(month - 8 - 1)%12]}{' (' + str(option_y - 1) + ')' if month - 8 - 1 < 0 else ''} à {months[month - 1]}",
+                          f"{months[(month - 11 - 1)%12]}{' (' + str(option_y - 1) + ')' if month - 11 - 1 < 0 else ''} à {months[month - 1]}"]
 
-    #choose data
-    def show_long_name(name):
-        for var in s2.data_vars:
-            if name in var:
-                return f"{s2[var].attrs['long_name']} ({name})"
+                fig, _ = plt.subplots(1, 1)
+                da = ds[f"spei{speis[s]}"].sel(time=f"{option_y}-{month}-01")
+                da = da.where(np.abs(da) > hide)
+                title = titles[s]
 
+                ax = plt.subplot(1, 1, 1, projection=cartopy.crs.PlateCarree())
+                make_spatial_distribution_plot(ax, da, levels=levels, cmap=cmap, title=title, shp=sf, lon_bnds=lon_bnds, lat_bnds=lat_bnds)
+                plt.tight_layout()
 
-    option_ind_s = cols[0].selectbox('Indicateurs ',set([x.split('_delta')[0] for x in s2.data_vars]), format_func = show_long_name)
-    option_stats_s =  cols[1].selectbox('Statistiques ', [ 'mean', 'max', 'min', 'stdev','p10', 'p50', 'p90'])
-    option_season_s = cols[2].selectbox('Saisons ', s2.season.values)
-    complete_var = f"{option_ind_s}_delta_1991_2020_{option_stats_s}"
-
-
-    #plot data
-    cmap = 'viridis_r' if s2[complete_var].attrs['standard_name'] == 'precipitation_flux' else 'plasma'
-    vmin = np.min([cur_wl[complete_var].sel(season=option_season_s).min().values for cur_wl in [s1,s2,s3,s4]])
-    vmax = np.max([cur_wl[complete_var].sel(season=option_season_s).max().values for cur_wl in [s1,s2,s3,s4]])
-
-
-    col3 = st.columns(4)
-    names = ['ssp1-2.6', 'ssp2-4.5', 'ssp3-7.0', 'ssp5-8.5']
-    for i, cur_wl in enumerate([s1,s2,s3,s4]):
-        select_wl = cur_wl[complete_var].sel(season=option_season_s).isel(horizon=0)
-        col3[i].write(names[i])
-        col3[i].write(
-            hv.render(select_wl.hvplot(cmap=cmap,width=400,
-                                                      height=350,
-                                                      clim=(vmin, vmax))))
-        col3[i].write(f"Nombre de réalisations de l'ensemble: {cur_wl.attrs['ensemble_size']}")
-
-with tab4:
-    col = st.columns([1,4,1,1])
-    if useCat:
-        option_ens = col[0].selectbox('ensemble', ['+1.5C', '+2C','+3C' ,'ssp126-2081-2100','ssp245-2081-2100','ssp370-2081-2100','ssp585-2081-2100'])
-        option_can = 'include'
-        if option_ens in ['ssp245-2081-2100','ssp370-2081-2100']:
-            option_can = col[0].selectbox('CanESM5', ['include', 'exclude'])
-        can=''
-        r=''
-        if option_can== 'exclude':
-            can = 'NoCanESM5'
-            option_r = col[0].selectbox('members', ['all members', 'only r1'])
-            if option_r == 'only r1':
-                r = 'r1'
-        selection = pcat.search(processing_level=f'delta-{option_ens}-selection{can}{r}').to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        all = pcat.search(processing_level=f'delta-{option_ens}-all{r}').to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        diff = pcat.search(processing_level=f'{option_ens}-selection{can}{r}VSall{r}').to_dask(xarray_open_kwargs={'decode_timedelta':False})
-        pvalues=None
-        if len(pcat.search(processing_level=f'p-{option_ens}-selection{can}{r}VSall{r}').df)>0:
-            pvalues = pcat.search(processing_level=f'p-{option_ens}-selection{can}{r}VSall{r}').to_dask(xarray_open_kwargs={'decode_timedelta':False})
-
-    if 'baseline' in selection.horizon.attrs:
-        st.write(f"Warming levels are calculated  from the {selection.horizon.attrs['baseline']} baseline")
-    def show_long_name_ens(name):
-        for var in all.data_vars:
-            if name in var:
-                return f"{all[var].attrs['long_name']} ({name})"
-
-    option_ind_ens = col[1].selectbox('Indicateur',
-                                   set(['_'.join(x.split('_')[:-1]) for x in
-                                        all.data_vars]),
-                                   format_func=show_long_name_ens)
-    option_stats_ens = col[2].selectbox('Statistique',[ 'mean', 'max', 'min', 'stdev','p10', 'p50', 'p90'])
-    option_season_ens = col[3].selectbox('Saison', all.season.values)
-    complete_var = f"{option_ind_ens}_{option_stats_ens}"
-
-
-
-    col_fig = st.columns(3)
-
-
-    select_haus = selection[complete_var].sel(season=option_season_ens).isel(horizon=0)
-    select_all = all[complete_var].sel(season=option_season_ens).isel(horizon=0)
-    select_diff = diff[complete_var].sel(season=option_season_ens).isel(horizon=0)
-
-    #plot data
-    cmap = 'viridis_r' if select_all.attrs['standard_name'] == 'precipitation_flux' else 'plasma'
-    vmin = np.min([cur.min().values for cur in [select_all, select_haus]])
-    vmax = np.max([cur.max().values for cur in [select_all, select_haus]])
-
-
-
-
-    col_fig[0].write('Selection')
-    col_fig[0].write(hv.render(select_haus.hvplot(cmap=cmap,width=450,height=350,clim=(vmin, vmax))))
-    col_fig[0].write(f"Nombre de réalisations de l'ensemble: {selection.attrs['ensemble_size']}")
-
-    col_fig[1].write('All')
-    col_fig[1].write( hv.render(select_all.hvplot(cmap=cmap, width=450,height=350, clim=(vmin, vmax))))
-    col_fig[1].write(f"Nombre de réalisations de l'ensemble: {all.attrs['ensemble_size']}")
-
-    col_fig[2].write('(Selection - All)/All')
-    diff_plot= select_diff.hvplot(cmap='coolwarm',clim =(- abs(select_diff).max(),abs(select_diff).max()),width=450,height=350)
-    col_fig[2].write( hv.render(diff_plot))
-
-    if pvalues:
-        select_p = pvalues[option_ind_ens].sel(season=option_season_ens).isel(horizon=0)
-        levels = [0, 0.05, 10]
-        colors = ['#43A047', '#E53935']
-        col_fig[2].write( hv.render(select_p.hvplot(width=450,height=350).options(color_levels=levels, cmap=colors)))
-
-
-
-
-
-# # test panel
-# # https://github.com/holoviz/panel/issues/1074
-# # https://github.com/streamlit/streamlit/issues/927
-# # import panel as pn
-# # import hvplot.xarray
-# #
-# # hvplot_plot = scen['mean-pr'].hvplot()
-# # hvplot_pane = pn.pane.HoloViews(hvplot_plot, name="Holoviews Plot")
-# # tabs = pn.Tabs(hvplot_pane)
-# # st.bokeh_chart(tabs.get_root())
-# #
-# # def plot_var(variable):
-# #     return scen[variable].hvplot()
-# #
-# # pan = pn.interact(plot_var, variable=list(scen.data_vars))
-# # st.write(hv.render(pan).get_root(), backend='bokeh')
-# #
-# #
-# #
-# #
-# # st.write(fig_hmap)
-# # st.write(fig_per)
+                cols[s].pyplot(fig)

@@ -13,7 +13,7 @@ xs.load_config("project.yml", "paths.yml", "cfg.yml")
 
 def main(hide: float = 0):
 
-
+    pcat = xs.ProjectCatalog(xs.CONFIG["project"]["path"], create=False)
 
     # Search
     ds_dict = pcat.search(processing_level="indicators").to_dataset_dict()

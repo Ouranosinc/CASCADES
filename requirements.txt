@@ -1,6 +1,5 @@
 pip
 altair
-bokeh==2.4.3
 holoviews
 hvplot
 matplotlib
@@ -12,3 +11,5 @@ pillow
 streamlit
 xarray
 zarr
+cartopy
+glob
