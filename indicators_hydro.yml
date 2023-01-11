@@ -1,0 +1,10 @@
+realm: land
+indicators:
+  q7min2ea:
+    base: freq_analysis
+    parameters:
+      mode: min
+      window: 7
+      t: 2
+      dist: lognorm
+      indexer: {month: [6, 7, 8, 9, 10, 11]}

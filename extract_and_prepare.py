@@ -36,10 +36,15 @@ def main():
                     # Ajust attributes
                     ds.attrs["cat:variable"] = tuple(v for v in ds.data_vars)
 
+                    # Resample
+                    ds = ds.resample({"time": "MS"}).mean(keep_attrs=True)
+                    ds.attrs["cat:xrfreq"] = "MS"
+                    ds.attrs["cat:frequency"] = "mon"
+
                     # Save
                     filename = f"{xs.CONFIG['io']['extract']}{ds.attrs['cat:id']}_{ds.attrs['cat:domain']}_{ds.attrs['cat:processing_level']}_{ds.attrs['cat:frequency']}.zarr"
-                    # chunks = xs.io.estimate_chunks(ds, ["lon"], target_mb=125)
-                    xs.save_to_zarr(ds, filename, rechunk=xs.CONFIG["chunks"]["extract"])
+                    chunks = xs.io.estimate_chunks(ds, ["lon"], target_mb=125)
+                    xs.save_to_zarr(ds, filename, rechunk=chunks)
                     pcat.update_from_ds(ds, filename)
 
     if xs.CONFIG["tasks"]["indicators"]:
@@ -55,14 +60,14 @@ def main():
 
                     # Compute SPEI (currently not compatible with xscen)
                     with xclim.set_options(check_missing="skip"):
-                        ind = xci.atmos.standardized_precipitation_evapotranspiration_index(wb=ds["wb"], wb_cal=da, freq="MS", window=1)
+                        ind = xci.atmos.standardized_precipitation_evapotranspiration_index(wb=ds["wb"], wb_cal=da, freq="MS", window=1, method="ML", dist="fisk")
                     ind = ind.to_dataset()
                     ind = ind.rename({"spei": "spei1"})
                     ind.attrs = ds.attrs
 
                     for window in [3, 6, 9, 12]:
                         with xclim.set_options(check_missing="skip"):
-                            ind[f"spei{window}"] = xci.atmos.standardized_precipitation_evapotranspiration_index(wb=ds["wb"], wb_cal=da, freq="MS", window=window)
+                            ind[f"spei{window}"] = xci.atmos.standardized_precipitation_evapotranspiration_index(wb=ds["wb"], wb_cal=da, freq="MS", window=window, method="ML", dist="fisk")
 
                     ind.attrs.pop("cat:variable", None)
                     ind.attrs["cat:xrfreq"] = "MS"
@@ -72,7 +77,7 @@ def main():
                     # Save
                     filename = f"{xs.CONFIG['io']['extract']}{ind.attrs['cat:id']}_{ind.attrs['cat:domain']}_{ind.attrs['cat:processing_level']}_{ind.attrs['cat:frequency']}.zarr"
                     print("Saving")
-                    xs.save_to_zarr(ind, filename, rechunk=xs.CONFIG["chunks"]["indicators"])
+                    xs.save_to_zarr(ind, filename)
                     pcat.update_from_ds(ind, filename)
 
 

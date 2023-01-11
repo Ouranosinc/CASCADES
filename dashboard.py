@@ -1,4 +1,3 @@
-# app is here: https://share.streamlit.io/ouranosinc/info-crue-cmip6/main/dashboard.py
 import streamlit as st
 import numpy as np
 import xarray as xr
@@ -6,13 +5,9 @@ import cartopy
 from matplotlib import pyplot as plt
 import matplotlib
 import glob
+import pandas as pd
 import geopandas as gpd
 
-
-st.set_page_config(layout="wide")
-
-st.title('CASCADES')
-st.header("Conséquences Attendues Survenant en Contexte d’Aggravation des Déficits d’Eau Sévères au Québec")
 
 @st.cache(hash_funcs={xr.core.dataset.Dataset: id},ttl=60)
 def load_zarr(path):
@@ -66,12 +61,7 @@ def make_spatial_distribution_plot(ax, ds, levels, cmap, lon_bnds, lat_bnds, tit
 
     plt.xlim([lon_bnds[0], lon_bnds[1]])
     plt.ylim([lat_bnds[0], lat_bnds[1]])
-
-    # Cartopy hijacks ax labels
-    ax.text(-0.07, 0.55, ylabel, va='bottom', ha='center',
-            rotation='vertical', rotation_mode='anchor',
-            transform=ax.transAxes)
-    plt.title(title)
+    plt.title(title, fontsize=18)
 
 
 def make_cmap(name, n_cluster):
@@ -172,6 +162,10 @@ def rgb_to_dec(
 ):
     return [v/256 for v in value]
 
+st.set_page_config(layout="wide")
+
+st.title('CASCADES')
+st.header("Conséquences Attendues Survenant en Contexte d’Aggravation des Déficits d’Eau Sévères au Québec")
 
 useCat = st.checkbox("Use Local Data")
 
@@ -181,7 +175,19 @@ tab1, tab2 = st.tabs(["Historique", "TBD"])
 with tab1:
 
     st.header("ERA5-Land")
-    st.markdown("Période de calage du SPEI: 1991-2020")
+
+    useSom = st.checkbox("Sommaire: SPEI minimal entre juin et octobre", True)
+    useHydro = st.checkbox("Afficher les rivières", False)
+    if useHydro:
+        cols = st.columns(2)
+        option_rivtype = cols[0].selectbox('Afficher les rivières:', ["Tous les tronçons", "Tronçons diffusés seulement"], index=1)
+        option_hidehydro = cols[1].selectbox("Niveau d\'intensité minimal (Débits)", ["Tout afficher", "≥ 1 (Modéré)", "≥ 1.5 (Sévère)", "≥ 2 (Extrême)", "≥ 2.5 (Très extrême)"], index=2)
+
+    cols = st.columns(2)
+    option_y = cols[0].selectbox('Année', np.arange(1970, 2022), index=51)
+    option_hide = cols[1].selectbox("Niveau d\'intensité minimal (SPEI)", ["Tout afficher", "≥ 1 (Modéré)", "≥ 1.5 (Sévère)", "≥ 2 (Extrême)", "≥ 2.5 (Très extrême)"], index=2)
+    hide = 0 if option_hide == "Tout afficher" else eval(option_hide.split("≥ ")[1].split(" (")[0])
+
     speis = [1, 3, 6, 9, 12]
     levels = np.arange(-2.5, 3, 0.5)
     cmap = make_cmap("BrWhGr", 25)
@@ -195,8 +201,11 @@ with tab1:
 
         ds = pcat.search(processing_level="indicators", source="ERA5-Land").to_dask()
 
-        regions = glob.glob(f"{xs.CONFIG['gis']}*.shp")
-        sf = [gpd.read_file(shp) for shp in regions]
+        # Shapefiles
+        regions = glob.glob(f"{xs.CONFIG['gis']}ZGIEBV/*.shp")
+        zgiebv = [gpd.read_file(shp) for shp in regions]
+        atlas = gpd.read_file(glob.glob(f"{xs.CONFIG['gis']}atlashydroclimatique_2022/*.shp")[0])
+        atlas_meta = pd.read_csv(f"{xs.CONFIG['dpphc']}Metadata_Portrait.csv", encoding='latin-1')
 
     else:
         raise NotImplementedError()
@@ -206,12 +215,13 @@ with tab1:
     lon_bnds = cols[0].slider('Longitude', -83., -55.5, (-83., -55.5))
     cols = st.columns(3)
     lat_bnds = cols[0].slider('Latitude', 43., 54., (43., 54.))
-    useSom = st.checkbox("Minimum: Juin à octobre", True)
-    cols = st.columns(2)
 
-    option_y = cols[0].selectbox('Année', np.arange(1970, 2022), index=51)
-    option_hide = cols[1].selectbox("Niveau d\'intensité minimal (SPEI)", ["Tout afficher", "≥ 1 (Modéré)", "≥ 1.5 (Sévère)", "≥ 2 (Extrême)", "≥ 2.5 (Très extrême)"], index=3)
-    hide = 0 if option_hide == "Tout afficher" else eval(option_hide.split("≥ ")[1].split(" (")[0])
+    cols = st.columns(5)
+    cols[0].markdown("<h3 style='text-align: center; color: black;'>SPEI-1</h3>", unsafe_allow_html=True)
+    cols[1].markdown("<h3 style='text-align: center; color: black;'>SPEI-3</h3>", unsafe_allow_html=True)
+    cols[2].markdown("<h3 style='text-align: center; color: black;'>SPEI-6</h3>", unsafe_allow_html=True)
+    cols[3].markdown("<h3 style='text-align: center; color: black;'>SPEI-9</h3>", unsafe_allow_html=True)
+    cols[4].markdown("<h3 style='text-align: center; color: black;'>SPEI-12</h3>", unsafe_allow_html=True)
 
     if useSom is True:
         # Plot the minimum of all SPEI between June and October
@@ -225,7 +235,9 @@ with tab1:
             title = titles[s]
 
             ax = plt.subplot(1, 1, 1, projection=cartopy.crs.PlateCarree())
-            make_spatial_distribution_plot(ax, da, levels=levels, cmap=cmap, title=title, shp=sf, lon_bnds=lon_bnds, lat_bnds=lat_bnds)
+            make_spatial_distribution_plot(ax, da, levels=levels, cmap=cmap, title=title, shp=zgiebv, lon_bnds=lon_bnds, lat_bnds=lat_bnds)
+            if useHydro == True:
+                atlas.where(atlas_meta["MASQUE"] >= (0 if option_rivtype == "Tous les tronçons" else 2)).plot(ax=ax)
             plt.tight_layout()
 
             cols[s].pyplot(fig)
@@ -249,7 +261,9 @@ with tab1:
                 title = titles[s]
 
                 ax = plt.subplot(1, 1, 1, projection=cartopy.crs.PlateCarree())
-                make_spatial_distribution_plot(ax, da, levels=levels, cmap=cmap, title=title, shp=sf, lon_bnds=lon_bnds, lat_bnds=lat_bnds)
+                make_spatial_distribution_plot(ax, da, levels=levels, cmap=cmap, title=title, shp=zgiebv, lon_bnds=lon_bnds, lat_bnds=lat_bnds)
+                if useHydro == True:
+                    atlas.where(atlas_meta["MASQUE"] >= (0 if option_rivtype == "Tous les tronçons" else 2)).plot(ax=ax)
                 plt.tight_layout()
 
                 cols[s].pyplot(fig)

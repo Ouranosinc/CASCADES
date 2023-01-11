@@ -3,20 +3,30 @@ indicators:
   spei1:
     base: spei
     parameters:
+      dist: fisk
+      method: ML
       window: 1
   spei3:
     base: spei
     parameters:
+      dist: fisk
+      method: ML
       window: 3
   spei6:
     base: spei
     parameters:
+      dist: fisk
+      method: ML
       window: 6
   spei9:
     base: spei
     parameters:
+      dist: fisk
+      method: ML
       window: 9
   spei12:
     base: spei
     parameters:
+      dist: fisk
+      method: ML
       window: 12
