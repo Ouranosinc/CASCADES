@@ -16,11 +16,17 @@ region:
 
 spei:
   cal_period: ['1991', '2020']
+  # https://www.eea.europa.eu/data-and-maps/daviz/global-average-air-temperature-anomalies-6#tab-dashboard-01
+  # Real 1991-2020 = +0.80°C
+#  warming_levels: [0.8, 1.5, 2, 3, 4]
+  warming_levels: [0.8]
+  windows: [3, 6, 9]
+  good_months: [5, 6, 7, 8, 9, 10, 11]
 
 dask:
-  n_workers: 6
+  n_workers: 10
   threads_per_worker: 3
-  memory_limit: 10GB
+  memory_limit: 20GB
 
 chunks:
   extract:
