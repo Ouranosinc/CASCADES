@@ -176,7 +176,7 @@ with tab1:
 
     st.header("ERA5-Land")
 
-    useSom = st.checkbox("Sommaire: SPEI minimal entre juin et octobre", True)
+    useSom = st.checkbox("Sommaire: SPEI minimal sur la période estivale", True)
     useHydro = st.checkbox("Afficher les rivières", False)
     if useHydro:
         cols = st.columns(2)
@@ -188,8 +188,8 @@ with tab1:
     option_hide = cols[1].selectbox("Niveau d\'intensité minimal (SPEI)", ["Tout afficher", "≥ 1 (Modéré)", "≥ 1.5 (Sévère)", "≥ 2 (Extrême)", "≥ 2.5 (Très extrême)"], index=2)
     hide = 0 if option_hide == "Tout afficher" else eval(option_hide.split("≥ ")[1].split(" (")[0])
 
-    speis = [1, 3, 6, 9, 12]
-    levels = np.arange(-2.5, 3, 0.5)
+    speis = [3, 6, 9]
+    levels = np.arange(-3, 3.5, 0.5)
     cmap = make_cmap("BrWhGr", 25)
     months = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
 
@@ -199,7 +199,7 @@ with tab1:
         xs.load_config("project.yml", "paths.yml", "cfg.yml", reset=True)
         pcat = xs.ProjectCatalog(xs.CONFIG["project"]["path"], create=False)
 
-        ds = pcat.search(processing_level="indicators", source="ERA5-Land").to_dask()
+        ds = pcat.search(processing_level="indicators-extracted", source="ERA5-Land").to_dask()
 
         # Shapefiles
         regions = glob.glob(f"{xs.CONFIG['gis']}ZGIEBV/*.shp")
@@ -216,21 +216,19 @@ with tab1:
     cols = st.columns(3)
     lat_bnds = cols[0].slider('Latitude', 43., 54., (43., 54.))
 
-    cols = st.columns(5)
-    cols[0].markdown("<h3 style='text-align: center; color: black;'>SPEI-1</h3>", unsafe_allow_html=True)
-    cols[1].markdown("<h3 style='text-align: center; color: black;'>SPEI-3</h3>", unsafe_allow_html=True)
-    cols[2].markdown("<h3 style='text-align: center; color: black;'>SPEI-6</h3>", unsafe_allow_html=True)
-    cols[3].markdown("<h3 style='text-align: center; color: black;'>SPEI-9</h3>", unsafe_allow_html=True)
-    cols[4].markdown("<h3 style='text-align: center; color: black;'>SPEI-12</h3>", unsafe_allow_html=True)
+    cols = st.columns(3)
+    cols[0].markdown("<h3 style='text-align: center; color: black;'>SPEI-3</h3>", unsafe_allow_html=True)
+    cols[1].markdown("<h3 style='text-align: center; color: black;'>SPEI-6</h3>", unsafe_allow_html=True)
+    cols[2].markdown("<h3 style='text-align: center; color: black;'>SPEI-9</h3>", unsafe_allow_html=True)
 
     if useSom is True:
         # Plot the minimum of all SPEI between June and October
         cols = st.columns(len(speis))
-        titles = ["min(SPEI-1)", "min(SPEI-3)", "min(SPEI-6)", "min(SPEI-9)", "min(SPEI-12)"]
+        titles = ["min(SPEI-3)", "min(SPEI-6)", "min(SPEI-9)"]
 
         for s in range(len(speis)):
             fig, _ = plt.subplots(1, 1)
-            da = ds[f"spei{speis[s]}"].sel(time=slice(f"{option_y}-06-01", f"{option_y}-10-01")).min(dim="time")
+            da = ds[f"spei{speis[s]}"].sel(time=slice(f"{option_y}-06-01", f"{option_y}-10-01")).clip(min=-3.09, max=3.09).min(dim="time")
             da = da.where(np.abs(da) > hide)
             title = titles[s]
 
@@ -244,26 +242,26 @@ with tab1:
 
     else:
         # Plot every month from June to October
-        for month in [6, 7, 8, 9, 10]:
+        for month in [5, 6, 7, 8, 9, 10, 11]:
             cols = st.columns(len(speis))
 
             for s in range(len(speis)):
 
-                titles = [months[month - 1],
-                          f"{months[(month - 2 - 1)%12]} à {months[month - 1]}",
-                          f"{months[(month - 5 - 1)%12]} à {months[month - 1]}",
-                          f"{months[(month - 8 - 1)%12]}{' (' + str(option_y - 1) + ')' if month - 8 - 1 < 0 else ''} à {months[month - 1]}",
-                          f"{months[(month - 11 - 1)%12]}{' (' + str(option_y - 1) + ')' if month - 11 - 1 < 0 else ''} à {months[month - 1]}"]
+                titles = [f"{months[(month - 2 - 1)%12]} à {months[month - 1]}",
+                          f"{months[(month - 5 - 1)%12]}{' (' + str(option_y - 1) + ')' if month - 5 - 1 < 0 else ''}  à {months[month - 1]}",
+                          f"{months[(month - 8 - 1)%12]}{' (' + str(option_y - 1) + ')' if month - 8 - 1 < 0 else ''} à {months[month - 1]}"]
 
-                fig, _ = plt.subplots(1, 1)
-                da = ds[f"spei{speis[s]}"].sel(time=f"{option_y}-{month}-01")
+                da = ds[f"spei{speis[s]}"].sel(time=f"{option_y}-{month}-01").clip(min=-3.09, max=3.09)
                 da = da.where(np.abs(da) > hide)
-                title = titles[s]
 
-                ax = plt.subplot(1, 1, 1, projection=cartopy.crs.PlateCarree())
-                make_spatial_distribution_plot(ax, da, levels=levels, cmap=cmap, title=title, shp=zgiebv, lon_bnds=lon_bnds, lat_bnds=lat_bnds)
-                if useHydro == True:
-                    atlas.where(atlas_meta["MASQUE"] >= (0 if option_rivtype == "Tous les tronçons" else 2)).plot(ax=ax)
-                plt.tight_layout()
+                if not np.isnan(da).all():
+                    fig, _ = plt.subplots(1, 1)
+                    title = titles[s]
 
-                cols[s].pyplot(fig)
+                    ax = plt.subplot(1, 1, 1, projection=cartopy.crs.PlateCarree())
+                    make_spatial_distribution_plot(ax, da, levels=levels, cmap=cmap, title=title, shp=zgiebv, lon_bnds=lon_bnds, lat_bnds=lat_bnds)
+                    if useHydro == True:
+                        atlas.where(atlas_meta["MASQUE"] >= (0 if option_rivtype == "Tous les tronçons" else 2)).plot(ax=ax)
+                    plt.tight_layout()
+
+                    cols[s].pyplot(fig)

@@ -82,32 +82,69 @@ def main():
                     pcat.update_from_ds(ds, filename)
 
     if xs.CONFIG["tasks"]["indicators"]:
+        def wrapped_spi(da, cal_period=None):
+            if (da.time.dt.month[0] in good_months):
+                with xclim.set_options(check_missing="skip", data_validation="log"):
+                    return xci.atmos.standardized_precipitation_evapotranspiration_index(wb=da, wb_cal=da if cal_period is None else da.sel(time=slice(cal_period[0], cal_period[1])),
+                                                                                         freq="MS", window=1,
+                                                                                         method="ML", dist="fisk")
+            else:
+                return da * np.NaN
+
         # Search
         ds_dict = pcat.search(processing_level="extracted", variable="wb").to_dataset_dict()
         for key, ds in ds_dict.items():
             if not pcat.exists_in_cat(id=key.split(".")[0], processing_level="indicators" if "ERA5" in key.split(".")[0] else 'indicators-warminglevel-4vs1850-1900'):
 
                 with Client(**xs.CONFIG["dask"]) as c:
-                    # Get reference period
-                    if "ERA5" in key:
-                        cal_period = xs.CONFIG["spei"]["cal_period"]
-                        da = ds["wb"].sel(time=slice(cal_period[0], cal_period[1]))
+                    # Compute SPEI per desired warming level
+                    for wl in xs.CONFIG["spei"]["cal_period"] if "ERA5" in key.split(".")[0] else xs.CONFIG["spei"]["warming_levels"]:
+                        if "ERA5" in key.split(".")[0]:
+                            ds_wl = ds
+                            cal_period = wl
+                        else:
+                            ds.attrs["cat:mip_era"] = "CMIP5"
+                            ds_wl = xs.subset_warming_level(ds, wl=wl, window=30).squeeze()
+                            cal_period = None
 
-                        # Compute SPEI (currently not compatible with xscen)
-                        with xclim.set_options(check_missing="skip"):
-                            ind = xci.atmos.standardized_precipitation_evapotranspiration_index(wb=ds["wb"], wb_cal=da, freq="MS", window=1, method="ML", dist="fisk")
+                        window = xs.CONFIG["spei"]["windows"][0]
+                        good_months = [m for m in xs.CONFIG["spei"]["good_months"] if m - window >= -1]
+                        with xr.set_options(keep_attrs=True):
+                            da_wl = xr.where(ds_wl["time.month"].isin(good_months), ds_wl["wb"].rolling({"time": window}).mean(), np.NaN)
+
+                        ind = da_wl.groupby("time.month").map(lambda x: wrapped_spi(x, cal_period=cal_period))
+                        ind.attrs = {
+                            'units': '',
+                            'calibration_period': cal_period if "ERA5" in key.split(".")[0] else [str(ind.time.dt.year[0].values), str(ind.time.dt.year[-1].values)],
+                            'cell_methods': 'pr: time: mean evspsblpot: tasmin: time:  minimum tasmax: time:  maximum time: mean within days',
+                            'history': f"{ds['wb'].attrs['history']}\n[2023-01-xx] spei: SPEI(wb=month, wb_cal=month, freq='MS', window={window}, dist='fisk', method='ML') with options check_missing=skip - xclim version: 0.40.0",
+                            'standard_name': 'spei',
+                            'long_name': 'Standardized precipitation evapotranspiration index (spei)',
+                            'description': f'Water budget (precipitation minus evapotranspiration) over a moving {window}-x window, normalized such that spei averages to 0 for calibration data. the window unit `x` is the minimal time period defined by the resampling frequency monthly.'
+                        }
                         ind = ind.to_dataset()
-                        ind = ind.rename({"spei": "spei1"})
+                        ind = ind.rename({"month": f"spei{window}"})
                         ind.attrs = ds.attrs
 
-                        for window in [3, 6, 9, 12]:
-                            with xclim.set_options(check_missing="skip"):
-                                ind[f"spei{window}"] = xci.atmos.standardized_precipitation_evapotranspiration_index(wb=ds["wb"], wb_cal=da, freq="MS", window=window, method="ML", dist="fisk")
+                        for window in xs.CONFIG["spei"]["windows"][1:]:
+                            good_months = [m for m in xs.CONFIG["spei"]["good_months"] if m - window >= -1]
+                            with xr.set_options(keep_attrs=True):
+                                da_wl = xr.where(ds_wl["time.month"].isin(good_months), ds_wl["wb"].rolling({"time": window}).mean(), np.NaN)
+                            ind[f"spei{window}"] = da_wl.groupby("time.month").map(lambda x: wrapped_spi(x, cal_period=cal_period))
+                            ind[f"spei{window}"].attrs = {
+                                'units': '',
+                                'calibration_period': cal_period if "ERA5" in key.split(".")[0] else [str(ind.time.dt.year[0].values), str(ind.time.dt.year[-1].values)],
+                                'cell_methods': 'pr: time: mean evspsblpot: tasmin: time:  minimum tasmax: time:  maximum time: mean within days',
+                                'history': f"{ds['wb'].attrs['history']}\n[2023-01-xx] spei: SPEI(wb=month, wb_cal=month, freq='MS', window={window}, dist='fisk', method='ML') with options check_missing=skip - xclim version: 0.40.0",
+                                'standard_name': 'spei',
+                                'long_name': 'Standardized precipitation evapotranspiration index (spei)',
+                                'description': f'Water budget (precipitation minus evapotranspiration) over a moving {window}-x window, normalized such that spei averages to 0 for calibration data. the window unit `x` is the minimal time period defined by the resampling frequency monthly.'
+                            }
 
                         ind.attrs.pop("cat:variable", None)
                         ind.attrs["cat:xrfreq"] = "MS"
                         ind.attrs["cat:frequency"] = "mon"
-                        ind.attrs["cat:processing_level"] = "indicators"
+                        ind.attrs["cat:processing_level"] = "indicators" if "ERA5" in key.split(".")[0] else f"indicators-{ds_wl.attrs['cat:processing_level']}"
 
                         # Save
                         filename = f"{xs.CONFIG['io']['extract']}{ind.attrs['cat:id']}_{ind.attrs['cat:domain']}_{ind.attrs['cat:processing_level']}_{ind.attrs['cat:frequency']}.zarr"
@@ -115,65 +152,92 @@ def main():
                         xs.save_to_zarr(ind, filename)
                         pcat.update_from_ds(ind, filename)
 
-                    else:
-                        def wrapped_spi(da):
-                            if (da.time.dt.month[0] in good_months):
-                                with xclim.set_options(check_missing="skip", data_validation="log"):
-                                    return xci.atmos.standardized_precipitation_evapotranspiration_index(wb=da, wb_cal=da,
-                                                                                                         freq="MS", window=1,
-                                                                                                         method="ML", dist="fisk")
-                            else:
-                                return da * np.NaN
 
-                        # Compute SPEI per desired warming level
-                        for wl in xs.CONFIG["spei"]["warming_levels"]:
-                            ds.attrs["cat:mip_era"] = "CMIP5"
-                            ds_wl = xs.subset_warming_level(ds, wl=wl, window=30).squeeze()
 
-                            window = xs.CONFIG["spei"]["windows"][0]
-                            good_months = [m for m in xs.CONFIG["spei"]["good_months"] if m - window >= -1]
-                            with xr.set_options(keep_attrs=True):
-                                da_wl = xr.where(ds_wl["time.month"].isin(good_months), ds_wl["wb"].rolling({"time": window}).mean(), np.NaN)
 
-                            ind = da_wl.groupby("time.month").map(wrapped_spi)
-                            ind.attrs = {
-                                'units': '',
-                                'calibration_period': [str(ind.time.dt.year[0].values), str(ind.time.dt.year[-1].values)],
-                                'cell_methods': 'pr: time: mean evspsblpot: tasmin: time:  minimum tasmax: time:  maximum time: mean within days',
-                                f'history': "pr: \nevspsblpot: tasmin: \ntasmax: \n[2023-01-16 17:00:04] tas: conversions.TAS_MIDPOINT(tasmin=tasmin, tasmax=tasmax) - xclim version: 0.39.0\n[2023-01-16 17:04:53] evspsblpot: conversion.EVSPSBLPOT(tas=tas, peta=0.00516409319477, petb=0.0874972822289) - xclim version: 0.39.0\n[2023-01-16 17:05:28] wb: conversion.WATER_BUDGET(pr=pr, evspsblpot=evspsblpot) - xclim version: 0.39.0\n[2023-01-18 10:43:20] spei: SPEI(wb=month, wb_cal=month, freq='MS', window={window}, dist='fisk', method='ML') with options check_missing=skip - xclim version: 0.40.0",
-                                'standard_name': 'spei',
-                                'long_name': 'Standardized precipitation evapotranspiration index (spei)',
-                                'description': f'Water budget (precipitation minus evapotranspiration) over a moving {window}-x window, normalized such that spei averages to 0 for calibration data. the window unit `x` is the minimal time period defined by the resampling frequency monthly.'
-                            }
-                            ind = ind.to_dataset()
-                            ind = ind.rename({"month": f"spei{window}"})
-                            ind.attrs = ds.attrs
 
-                            for window in xs.CONFIG["spei"]["windows"][1:]:
-                                good_months = [m for m in xs.CONFIG["spei"]["good_months"] if m - window >= -1]
-                                with xr.set_options(keep_attrs=True):
-                                    da_wl = xr.where(ds_wl["time.month"].isin(good_months), ds_wl["wb"].rolling({"time": window}).mean(), np.NaN)
-                                ind[f"spei{window}"] = da_wl.groupby("time.month").map(wrapped_spi)
-                                ind[f"spei{window}"].attrs = {
-                                    'units': '',
-                                    'calibration_period': [str(ind.time.dt.year[0].values), str(ind.time.dt.year[-1].values)],
-                                    'cell_methods': 'pr: time: mean evspsblpot: tasmin: time:  minimum tasmax: time:  maximum time: mean within days',
-                                    f'history': "pr: \nevspsblpot: tasmin: \ntasmax: \n[2023-01-16 17:00:04] tas: conversions.TAS_MIDPOINT(tasmin=tasmin, tasmax=tasmax) - xclim version: 0.39.0\n[2023-01-16 17:04:53] evspsblpot: conversion.EVSPSBLPOT(tas=tas, peta=0.00516409319477, petb=0.0874972822289) - xclim version: 0.39.0\n[2023-01-16 17:05:28] wb: conversion.WATER_BUDGET(pr=pr, evspsblpot=evspsblpot) - xclim version: 0.39.0\n[2023-01-18 10:43:20] spei: SPEI(wb=month, wb_cal=month, freq='MS', window={window}, dist='fisk', method='ML') with options check_missing=skip - xclim version: 0.40.0",
-                                    'standard_name': 'spei',
-                                    'long_name': 'Standardized precipitation evapotranspiration index (spei)',
-                                    'description': f'Water budget (precipitation minus evapotranspiration) over a moving {window}-x window, normalized such that spei averages to 0 for calibration data. the window unit `x` is the minimal time period defined by the resampling frequency monthly.'
-                                }
 
-                            ind.attrs.pop("cat:variable", None)
-                            ind.attrs["cat:xrfreq"] = "MS"
-                            ind.attrs["cat:frequency"] = "mon"
-                            ind.attrs["cat:processing_level"] = f"indicators-{ds_wl.attrs['cat:processing_level']}"
-
-                            # Save
-                            filename = f"{xs.CONFIG['io']['extract']}{ind.attrs['cat:id']}_{ind.attrs['cat:domain']}_{ind.attrs['cat:processing_level']}_{ind.attrs['cat:frequency']}.zarr"
-                            print("Saving")
-                            xs.save_to_zarr(ind, filename)
-                            pcat.update_from_ds(ind, filename)
+                    #
+                    #
+                    #
+                    #
+                    # # Get reference period
+                    # if "ERA5" in key:
+                    #     cal_period = xs.CONFIG["spei"]["cal_period"]
+                    #     da = ds["wb"].sel(time=slice(cal_period[0], cal_period[1]))
+                    #
+                    #     # Compute SPEI (currently not compatible with xscen)
+                    #     with xclim.set_options(check_missing="skip"):
+                    #         ind = xci.atmos.standardized_precipitation_evapotranspiration_index(wb=ds["wb"], wb_cal=da, freq="MS", window=1, method="ML", dist="fisk")
+                    #     ind = ind.to_dataset()
+                    #     ind = ind.rename({"spei": "spei1"})
+                    #     ind.attrs = ds.attrs
+                    #
+                    #     for window in [3, 6, 9, 12]:
+                    #         with xclim.set_options(check_missing="skip"):
+                    #             ind[f"spei{window}"] = xci.atmos.standardized_precipitation_evapotranspiration_index(wb=ds["wb"], wb_cal=da, freq="MS", window=window, method="ML", dist="fisk")
+                    #
+                    #     ind.attrs.pop("cat:variable", None)
+                    #     ind.attrs["cat:xrfreq"] = "MS"
+                    #     ind.attrs["cat:frequency"] = "mon"
+                    #     ind.attrs["cat:processing_level"] = "indicators"
+                    #
+                    #     # Save
+                    #     filename = f"{xs.CONFIG['io']['extract']}{ind.attrs['cat:id']}_{ind.attrs['cat:domain']}_{ind.attrs['cat:processing_level']}_{ind.attrs['cat:frequency']}.zarr"
+                    #     print("Saving")
+                    #     xs.save_to_zarr(ind, filename)
+                    #     pcat.update_from_ds(ind, filename)
+                    #
+                    # else:
+                    #     # Compute SPEI per desired warming level
+                    #     for wl in xs.CONFIG["spei"]["warming_levels"]:
+                    #         ds.attrs["cat:mip_era"] = "CMIP5"
+                    #         ds_wl = xs.subset_warming_level(ds, wl=wl, window=30).squeeze()
+                    #
+                    #         window = xs.CONFIG["spei"]["windows"][0]
+                    #         good_months = [m for m in xs.CONFIG["spei"]["good_months"] if m - window >= -1]
+                    #         with xr.set_options(keep_attrs=True):
+                    #             da_wl = xr.where(ds_wl["time.month"].isin(good_months), ds_wl["wb"].rolling({"time": window}).mean(), np.NaN)
+                    #
+                    #         ind = da_wl.groupby("time.month").map(wrapped_spi)
+                    #         ind.attrs = {
+                    #             'units': '',
+                    #             'calibration_period': [str(ind.time.dt.year[0].values), str(ind.time.dt.year[-1].values)],
+                    #             'cell_methods': 'pr: time: mean evspsblpot: tasmin: time:  minimum tasmax: time:  maximum time: mean within days',
+                    #             f'history': "pr: \nevspsblpot: tasmin: \ntasmax: \n[2023-01-16 17:00:04] tas: conversions.TAS_MIDPOINT(tasmin=tasmin, tasmax=tasmax) - xclim version: 0.39.0\n[2023-01-16 17:04:53] evspsblpot: conversion.EVSPSBLPOT(tas=tas, peta=0.00516409319477, petb=0.0874972822289) - xclim version: 0.39.0\n[2023-01-16 17:05:28] wb: conversion.WATER_BUDGET(pr=pr, evspsblpot=evspsblpot) - xclim version: 0.39.0\n[2023-01-18 10:43:20] spei: SPEI(wb=month, wb_cal=month, freq='MS', window={window}, dist='fisk', method='ML') with options check_missing=skip - xclim version: 0.40.0",
+                    #             'standard_name': 'spei',
+                    #             'long_name': 'Standardized precipitation evapotranspiration index (spei)',
+                    #             'description': f'Water budget (precipitation minus evapotranspiration) over a moving {window}-x window, normalized such that spei averages to 0 for calibration data. the window unit `x` is the minimal time period defined by the resampling frequency monthly.'
+                    #         }
+                    #         ind = ind.to_dataset()
+                    #         ind = ind.rename({"month": f"spei{window}"})
+                    #         ind.attrs = ds.attrs
+                    #
+                    #         for window in xs.CONFIG["spei"]["windows"][1:]:
+                    #             good_months = [m for m in xs.CONFIG["spei"]["good_months"] if m - window >= -1]
+                    #             with xr.set_options(keep_attrs=True):
+                    #                 da_wl = xr.where(ds_wl["time.month"].isin(good_months), ds_wl["wb"].rolling({"time": window}).mean(), np.NaN)
+                    #             ind[f"spei{window}"] = da_wl.groupby("time.month").map(wrapped_spi)
+                    #             ind[f"spei{window}"].attrs = {
+                    #                 'units': '',
+                    #                 'calibration_period': [str(ind.time.dt.year[0].values), str(ind.time.dt.year[-1].values)],
+                    #                 'cell_methods': 'pr: time: mean evspsblpot: tasmin: time:  minimum tasmax: time:  maximum time: mean within days',
+                    #                 f'history': "pr: \nevspsblpot: tasmin: \ntasmax: \n[2023-01-16 17:00:04] tas: conversions.TAS_MIDPOINT(tasmin=tasmin, tasmax=tasmax) - xclim version: 0.39.0\n[2023-01-16 17:04:53] evspsblpot: conversion.EVSPSBLPOT(tas=tas, peta=0.00516409319477, petb=0.0874972822289) - xclim version: 0.39.0\n[2023-01-16 17:05:28] wb: conversion.WATER_BUDGET(pr=pr, evspsblpot=evspsblpot) - xclim version: 0.39.0\n[2023-01-18 10:43:20] spei: SPEI(wb=month, wb_cal=month, freq='MS', window={window}, dist='fisk', method='ML') with options check_missing=skip - xclim version: 0.40.0",
+                    #                 'standard_name': 'spei',
+                    #                 'long_name': 'Standardized precipitation evapotranspiration index (spei)',
+                    #                 'description': f'Water budget (precipitation minus evapotranspiration) over a moving {window}-x window, normalized such that spei averages to 0 for calibration data. the window unit `x` is the minimal time period defined by the resampling frequency monthly.'
+                    #             }
+                    #
+                    #         ind.attrs.pop("cat:variable", None)
+                    #         ind.attrs["cat:xrfreq"] = "MS"
+                    #         ind.attrs["cat:frequency"] = "mon"
+                    #         ind.attrs["cat:processing_level"] = f"indicators-{ds_wl.attrs['cat:processing_level']}"
+                    #
+                    #         # Save
+                    #         filename = f"{xs.CONFIG['io']['extract']}{ind.attrs['cat:id']}_{ind.attrs['cat:domain']}_{ind.attrs['cat:processing_level']}_{ind.attrs['cat:frequency']}.zarr"
+                    #         print("Saving")
+                    #         xs.save_to_zarr(ind, filename)
+                    #         pcat.update_from_ds(ind, filename)
 
 
 if __name__ == '__main__':
