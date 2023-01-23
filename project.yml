@@ -22,7 +22,7 @@ spei:
   # https://www.carbonbrief.org/analysis-why-the-new-met-office-temperature-record-shows-faster-warming-since-1970s/
   # Real 1992-2021 = +0.91°C  (HadCRUT5)
 #  warming_levels: [0.91, 1.5, 2, 3, 4]
-  warming_levels: [0.91]
+  warming_levels: [0.91, 3]
   windows: [3, 6, 9]
   good_months: [5, 6, 7, 8, 9, 10, 11]
 

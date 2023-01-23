@@ -199,7 +199,7 @@ with tab1:
         xs.load_config("project.yml", "paths.yml", "cfg.yml", reset=True)
         pcat = xs.ProjectCatalog(xs.CONFIG["project"]["path"], create=False)
 
-        ds = pcat.search(processing_level="indicators-extracted", source="ERA5-Land").to_dask()
+        ds = pcat.search(processing_level="indicators", source="ERA5-Land").to_dask()
 
         # Shapefiles
         regions = glob.glob(f"{xs.CONFIG['gis']}ZGIEBV/*.shp")

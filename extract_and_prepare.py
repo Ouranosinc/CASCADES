@@ -87,7 +87,7 @@ def main():
                 with xclim.set_options(check_missing="skip", data_validation="log"):
                     return xci.atmos.standardized_precipitation_evapotranspiration_index(wb=da, wb_cal=da if cal_period is None else da.sel(time=slice(cal_period[0], cal_period[1])),
                                                                                          freq="MS", window=1,
-                                                                                         method="ML", dist="fisk")
+                                                                                         method="ML", dist="fisk").clip(min=-3.09, max=3.09, keep_attrs=True)
             else:
                 return da * np.NaN
 
