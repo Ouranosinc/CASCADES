@@ -7,7 +7,7 @@ import xscen as xs
 import xclim
 import xclim.indicators as xci
 
-xs.load_config("project.yml", "paths.yml", "cfg.yml")
+xs.load_config("project.yml", "paths.yml", "cfg_spei.yml")
 
 def main():
 
