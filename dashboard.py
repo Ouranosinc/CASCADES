@@ -52,6 +52,7 @@ def make_spatial_distribution_plot(ax, ds, levels, cmap, lon_bnds, lat_bnds, tit
     ax.coastlines(zorder=2)
     ax.add_feature(cartopy.feature.OCEAN, zorder=1)
     ax.add_feature(cartopy.feature.LAKES, edgecolor="black")
+    ax.add_feature(cartopy.feature.STATES, edgecolor="black", linestyle="dotted")
 
     ds.plot.imshow(ax=ax, levels=levels, colors=cmap, extend='both', zorder=0, add_colorbar=add_cbar)
 
@@ -204,8 +205,8 @@ with tab1:
         # Shapefiles
         regions = glob.glob(f"{xs.CONFIG['gis']}ZGIEBV/*.shp")
         zgiebv = [gpd.read_file(shp) for shp in regions]
-        atlas = gpd.read_file(glob.glob(f"{xs.CONFIG['gis']}atlashydroclimatique_2022/*.shp")[0])
-        atlas_meta = pd.read_csv(f"{xs.CONFIG['dpphc']}Metadata_Portrait.csv", encoding='latin-1')
+        atlas = gpd.read_file(glob.glob(f"{xs.CONFIG['gis']}*.shp")[0])
+        atlas_meta = pd.read_csv(f"{xs.CONFIG['dpphc']['portrait']}Metadata_Portrait.csv", encoding='latin-1')
 
     else:
         raise NotImplementedError()
@@ -221,6 +222,7 @@ with tab1:
     cols[1].markdown("<h3 style='text-align: center; color: black;'>SPEI-6</h3>", unsafe_allow_html=True)
     cols[2].markdown("<h3 style='text-align: center; color: black;'>SPEI-9</h3>", unsafe_allow_html=True)
 
+    proj = cartopy.crs.PlateCarree()
     if useSom is True:
         # Plot the minimum of all SPEI between June and October
         cols = st.columns(len(speis))
@@ -232,7 +234,7 @@ with tab1:
             da = da.where(np.abs(da) > hide)
             title = titles[s]
 
-            ax = plt.subplot(1, 1, 1, projection=cartopy.crs.PlateCarree())
+            ax = plt.subplot(1, 1, 1, projection=proj)
             make_spatial_distribution_plot(ax, da, levels=levels, cmap=cmap, title=title, shp=zgiebv, lon_bnds=lon_bnds, lat_bnds=lat_bnds)
             if useHydro == True:
                 atlas.where(atlas_meta["MASQUE"] >= (0 if option_rivtype == "Tous les tronçons" else 2)).plot(ax=ax)
@@ -258,7 +260,7 @@ with tab1:
                     fig, _ = plt.subplots(1, 1)
                     title = titles[s]
 
-                    ax = plt.subplot(1, 1, 1, projection=cartopy.crs.PlateCarree())
+                    ax = plt.subplot(1, 1, 1, projection=proj)
                     make_spatial_distribution_plot(ax, da, levels=levels, cmap=cmap, title=title, shp=zgiebv, lon_bnds=lon_bnds, lat_bnds=lat_bnds)
                     if useHydro == True:
                         atlas.where(atlas_meta["MASQUE"] >= (0 if option_rivtype == "Tous les tronçons" else 2)).plot(ax=ax)
