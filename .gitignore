@@ -129,6 +129,7 @@ dmypy.json
 .pyre/
 
 # xscen-specific
-extraction/paths.yml
+paths.yml
+diagnostics/paths.yml
 projectCatalog*
 /_archives/

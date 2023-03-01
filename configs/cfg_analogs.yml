@@ -1,51 +1,26 @@
 project:
   title: CASCADES
-  description: Production de trames narratives pour le projet CASCAES
+  description: Production de trames narratives pour le projet CASCADES
 
-tasks:
-  extract: False
-  indicators: True
-
-region:
-  name: SouthQC
-  method: bbox
-  buffer: 1.5
-  bbox:
-    lon_bnds: [-83, -55.5]
-    lat_bnds: [43, 54]
-
-spei:
+storylines:
   cal_period: [['1992', '2021']]
   # https://www.eea.europa.eu/data-and-maps/daviz/global-average-air-temperature-anomalies-6#tab-dashboard-01
   # Real 1991-2020 = +0.80°C  (mix NOAA, NASA, HadCRUT4)
   # https://www.metoffice.gov.uk/hadobs/hadcrut5/data/current/download.html
   # https://www.carbonbrief.org/analysis-why-the-new-met-office-temperature-record-shows-faster-warming-since-1970s/
   # Real 1992-2021 = +0.91°C  (HadCRUT5)
-#  warming_levels: [0.91, 1.5, 2, 3, 4]
-  warming_levels: [1.5, 2, 3, 4]
-  windows: [3, 6, 9]
-  good_months: [5, 6, 7, 8, 9, 10, 11]
+  warming_levels: [0.91, 1.5, 2, 3, 4]
 
 analogs:
   targets:
-    2021: ['Monteregie', 'Estrie']
+    2021: ['OBVBM', 'OBVZB', 'GROBEC', 'SCABRIC', 'COBARIC', 'OBV du ChÃªne', 'OBVRLY',
+           'ABRINORD', 'CBE', 'CBJC', 'CARA', 'AGIR MaskinongÃ©', 'COBAMIL', 'COPERNIC', 'COVABAR',
+           'OBV-Capitale', 'COGESAF', 'OBV CAPSA', 'COBAVER-VS', 'OBV Yamaska', 'SAMBBA']
 #    2018: ['Gaspesie']
 #    2012: ['Outaouais Aval', 'Outaouais Amont']
-#  criteria: [["spei9", 10], ["spei6", 10], ["spei3", 9], ["spei6", 7], ["spei3", 7]]
   criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11]]
 
-
 dask:
-  n_workers: 10
+  n_workers: 2
   threads_per_worker: 3
   memory_limit: 20GB
-
-chunks:
-  extract:
-    time: 1000
-    lat: -1
-    lon: -1
-  indicators:
-    time: 100
-    lat: -1
-    lon: -1

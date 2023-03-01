@@ -1,0 +1,56 @@
+project:
+  title: CASCADES
+  description: Production de trames narratives pour le projet CASCADES
+
+tasks:
+  extract: False
+  indicators: True
+
+region:
+  name: SouthQC
+  method: bbox
+  buffer: 1.5
+  bbox:
+    lon_bnds: [-83, -55.5]
+    lat_bnds: [43, 54]
+
+extract:
+  search_data_catalogs_ref:
+    variables_and_freqs:
+      pr: D
+      tas: D
+    other_search_criteria:
+      source: ERA5-Land
+    periods: ['1960', '2021']
+  search_data_catalogs_sim:
+    variables_and_freqs:
+      pr: D
+      tas: D
+    other_search_criteria:
+      activity: ClimEx
+      processing_level: biasadjusted
+    periods: ['1970', '2099']
+    allow_conversion: True
+    match_hist_and_fut: True
+#    restrict_members: {"ordered": 3}
+
+  extract_dataset:
+    xr_combine_kwargs:
+      data_vars: minimal
+
+spei:
+  cal_period: [['1992', '2021']]
+  # https://www.eea.europa.eu/data-and-maps/daviz/global-average-air-temperature-anomalies-6#tab-dashboard-01
+  # Real 1991-2020 = +0.80°C  (mix NOAA, NASA, HadCRUT4)
+  # https://www.metoffice.gov.uk/hadobs/hadcrut5/data/current/download.html
+  # https://www.carbonbrief.org/analysis-why-the-new-met-office-temperature-record-shows-faster-warming-since-1970s/
+  # Real 1992-2021 = +0.91°C  (HadCRUT5)
+#  warming_levels: [0.91, 1.5, 2, 3, 4]
+  warming_levels: [1.5, 2, 3, 4]
+  windows: [3, 6, 9]
+  good_months: [5, 6, 7, 8, 9, 10, 11]
+
+dask:
+  n_workers: 10
+  threads_per_worker: 3
+  memory_limit: 20GB

@@ -1,0 +1,56 @@
+project:
+  title: CASCADES
+  description: Production de trames narratives pour le projet CASCADES
+
+tasks:
+  extract: True
+
+region:
+  name: ZGIEBV
+  method: shape
+  shape:
+    buffer: 0.1
+
+aggregate:
+  spatial_mean:
+    method: xesmf
+    simplify_tolerance: 0.01
+    kwargs:
+      skipna: True
+
+storylines:
+  cal_period: [['1992', '2021']]
+  # https://www.eea.europa.eu/data-and-maps/daviz/global-average-air-temperature-anomalies-6#tab-dashboard-01
+  # Real 1991-2020 = +0.80°C  (mix NOAA, NASA, HadCRUT4)
+  # https://www.metoffice.gov.uk/hadobs/hadcrut5/data/current/download.html
+  # https://www.carbonbrief.org/analysis-why-the-new-met-office-temperature-record-shows-faster-warming-since-1970s/
+  # Real 1992-2021 = +0.91°C  (HadCRUT5)
+  warming_levels: [0.91, 1.5, 2, 3, 4]
+
+extract:
+  search_data_catalogs_ref:
+    variables_and_freqs:
+      tasmax: D
+    other_search_criteria:
+      source: ERA5-Land
+    periods: ['1992', '2021']
+#  search_data_catalogs_sim:
+#    variables_and_freqs:
+#      pr: D
+#      tas: D
+#    other_search_criteria:
+#      activity: ClimEx
+#      processing_level: biasadjusted
+#    periods: ['1970', '2099']
+#    allow_conversion: True
+#    match_hist_and_fut: True
+##    restrict_members: {"ordered": 3}
+
+  extract_dataset:
+    xr_combine_kwargs:
+      data_vars: minimal
+
+dask:
+  n_workers: 10
+  threads_per_worker: 3
+  memory_limit: 20GB

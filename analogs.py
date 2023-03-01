@@ -1,5 +1,4 @@
 import os.path
-from distributed import Client
 
 import numpy as np
 import pandas as pd
@@ -10,7 +9,7 @@ import xclim.ensembles
 import matplotlib.pyplot as plt
 import geopandas as gpd
 
-xs.load_config("project.yml", "paths.yml", "cfg.yml")
+xs.load_config("project.yml", "paths.yml")
 
 
 def main():
@@ -20,9 +19,8 @@ def main():
         pcat = xs.ProjectCatalog(xs.CONFIG["project"]["path"])
 
         # FIXME
-        for warming_level in [0.91] + xs.CONFIG["spei"]["warming_levels"]:
+        for warming_level in xs.CONFIG["storylines"]["warming_levels"]:
 
-            # with Client(n_workers=2, threads_per_worker=3, local_directory=xs.CONFIG["dask"]["local_directory"]) as c:
             # ClimEx
             hist_dict = pcat.search(source="CRCM5.*", processing_level=f".*{warming_level}vs.*").to_dataset_dict()
             hist = xclim.ensembles.create_ensemble(hist_dict)
@@ -50,44 +48,44 @@ def main():
                 analogs = sort_analogs(perf.rmse)
 
                 compare_streamflow(target, analogs, warming_level=warming_level)
-                #
-                #
-                # criteria = xs.CONFIG["analogs"]["criteria"]
-                # # Plot
-                # plt.subplots(5, len(criteria))
-                # ii = 1
-                # for c in criteria:
-                #     ax = plt.subplot(5, len(criteria), ii)
-                #     ref[c[0]].sel(time=f"{target}-{c[1]:02d}-01").plot(vmin=-3.09, vmax=3.09, add_colorbar=False)
-                #     plt.title(f"{c[0].upper()}-{c[1]}")
-                #     ax.set_xticklabels([])
-                #     ax.set_yticklabels([])
-                #     plt.xlabel("")
-                #     plt.ylabel("")
-                #     if ii == 1:
-                #         plt.ylabel("ERA5-Land")
-                #
-                #     ii = ii + 1
-                #
-                # for i in range(4):
-                #     for c in criteria:
-                #         ax = plt.subplot(5, len(criteria), ii)
-                #         hist[c[0]].sel(realization=analogs.isel(stacked=i).realization,
-                #                        time=f"{str(analogs.isel(stacked=i).time.dt.year.values)}-{c[1]:02d}-01").plot(vmin=-3.09,
-                #                                                                                                       vmax=3.09,
-                #                                                                                                       add_colorbar=False)
-                #         plt.title("")
-                #         ax.set_xticklabels([])
-                #         ax.set_yticklabels([])
-                #         plt.xlabel("")
-                #         plt.ylabel("")
-                #         if c == criteria[0]:
-                #             plt.ylabel(f"{str(analogs.isel(stacked=i).realization.values).split('.')[0].split('_')[-1]} | "
-                #                        f"{str(analogs.isel(stacked=i).time.dt.year.values)}\nsum(RMSE) = {np.round(analogs.isel(stacked=i).values, 2)}")
-                #
-                #         ii = ii + 1
-                #
-                # plt.tight_layout()
+
+
+                criteria = xs.CONFIG["analogs"]["criteria"]
+                # Plot
+                plt.subplots(5, len(criteria))
+                ii = 1
+                for c in criteria:
+                    ax = plt.subplot(5, len(criteria), ii)
+                    ref[c[0]].sel(time=f"{target}-{c[1]:02d}-01").plot(vmin=-3.09, vmax=3.09, add_colorbar=False)
+                    plt.title(f"{c[0].upper()}-{c[1]}")
+                    ax.set_xticklabels([])
+                    ax.set_yticklabels([])
+                    plt.xlabel("")
+                    plt.ylabel("")
+                    if ii == 1:
+                        plt.ylabel("ERA5-Land")
+
+                    ii = ii + 1
+
+                for i in range(4):
+                    for c in criteria:
+                        ax = plt.subplot(5, len(criteria), ii)
+                        hist[c[0]].sel(realization=analogs.isel(stacked=i).realization,
+                                       time=f"{str(analogs.isel(stacked=i).time.dt.year.values)}-{c[1]:02d}-01").plot(vmin=-3.09,
+                                                                                                                      vmax=3.09,
+                                                                                                                      add_colorbar=False)
+                        plt.title("")
+                        ax.set_xticklabels([])
+                        ax.set_yticklabels([])
+                        plt.xlabel("")
+                        plt.ylabel("")
+                        if c == criteria[0]:
+                            plt.ylabel(f"{str(analogs.isel(stacked=i).realization.values).split('.')[0].split('_')[-1]} | "
+                                       f"{str(analogs.isel(stacked=i).time.dt.year.values)}\nsum(RMSE) = {np.round(analogs.isel(stacked=i).values, 2)}")
+
+                        ii = ii + 1
+
+                plt.tight_layout()
 
 
 def compute_criteria(ref, hist,
@@ -97,11 +95,11 @@ def compute_criteria(ref, hist,
                      to_level: str = None):
 
     # Prepare weights
-    shp = gpd.read_file(xs.CONFIG["dpphc"]["contours"])
-    target_region = shp.loc[shp["Nom_Projet"].isin(xs.CONFIG["analogs"]["targets"][target_year])]
+    shp = gpd.read_file(f"{xs.CONFIG['gis']}ZGIEBV/ZGIEBV_WGS84.shp")
+    target_region = shp.loc[shp["SIGLE"].isin(xs.CONFIG["analogs"]["targets"][target_year])]
     full_domain = ref[criteria[0][0]].sel(time=f"{target_year}-06-01").chunk({"lon": -1})
 
-    region_close = xs.extract.clisops_subset(xr.ones_like(full_domain), {"method": "shape", "shape": {"shape": target_region}}).interp_like(full_domain)
+    region_close = xs.extract.clisops_subset(xr.ones_like(full_domain), {"method": "shape", "shape": {"shape": target_region, "buffer": 0.1}}).interp_like(full_domain)
     region_far = xs.extract.clisops_subset(xr.ones_like(full_domain), {"method": "shape", "shape": {"shape": target_region, "buffer": 0.5}}).interp_like(
         full_domain)
 
@@ -120,23 +118,6 @@ def compute_criteria(ref, hist,
 
         rsme_sum.extend([rmse])
 
-    # # Loop on each criterion
-    # rsme_sum = []
-    # for c in criteria:
-    #     target = ref[c[0]].sel(time=f"{target_year}-{c[1]:02d}-01").chunk({"lon": -1})
-    #     candidates = hist[c[0]].where(hist.time.dt.month == c[1], drop=True).chunk({"lon": -1})
-    #     candidates["time"] = candidates["time"].dt.year
-    #
-    #     # First screeening through RMSE. Only the events within the first 10 quantiles are kept
-    #     weights = xr.where(target <= -2, 2, xr.where(target <= -1, 1, 0.33))
-    #     rmse = xss.rmse(candidates, target, dim=["lon", "lat"], weights=weights, skipna=True).compute()
-    #     sorted_rmse = np.sort(rmse.values.flatten())
-    #     candidates = candidates.where(rmse <= np.nanquantile(sorted_rmse, 0.10))
-    #
-    #     # Spatial correlation
-    #     spearman = xss.spearman_r(candidates, target, weights=weights, dim=["lon", "lat"], skipna=True).compute()
-    #     rsme_sum.extend([spearman])
-
     r = sum(rsme_sum)
     r.name = "rmse"
     r.attrs = {
@@ -146,10 +127,7 @@ def compute_criteria(ref, hist,
     }
 
     out = r.to_dataset()
-    out["weights"] = weights
-
     out.attrs = hist.attrs
-
     out.attrs["cat:processing_level"] = f"performance-vs-{target_year}" if not to_level else to_level
 
     return out
