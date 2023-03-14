@@ -51,25 +51,36 @@ def main():
                     ds = ds.chunk({"lon": -1, "lat": -1})
                     ds_mean = xs.spatial_mean(ds, method="xesmf", region=region, simplify_tolerance=0.01)
 
-                    # Cleanup
-                    ds_mean = xs.clean_up(ds_mean, variables_and_units={"tasmax": "degC"}, change_attr_prefix="dataset:", attrs_to_remove={"global": ["cat:_data_format_", "intake_esm_dataset_key"]})
+                    # Indicators
+                    if xs.CONFIG["tasks"]["extract"]:
+                        ind_dict = xs.compute_indicators(ds_mean, indicators="configs/indicators_zgiebv.yml")
+                    else:
+                        ind_dict = {"D": ds_mean}
 
-                    # Prepare CSV
-                    filename = f"{xs.CONFIG['io']['livraison']}{ds_mean.attrs['dataset:id']}_{ds_mean.attrs['dataset:domain']}"
+                    for out in ind_dict.values():
+                        if xs.CONFIG["tasks"]["deltas"]:
+                            ref = xs.climatological_mean(out)
+                            deltas = xs.compute_deltas(ds=out, reference_horizon=ref, kind="+")
 
-                    # Write some metadata
-                    metadata_geom = ds_mean.geom.to_dataframe()
-                    metadata_geom.to_csv(f"{xs.CONFIG['io']['livraison']}zgiebv.csv")
-                    with open(f"{filename}_metadata.json", 'w') as fp:
-                        json.dump(ds_mean.attrs, fp)
+                        # Cleanup
+                        out = xs.clean_up(out, variables_and_units={"tasmax": "degC"}, change_attr_prefix="dataset:", attrs_to_remove={"global": ["cat:_data_format_", "intake_esm_dataset_key"]})
 
-                    metadata_geom.to_csv(f"{xs.CONFIG['io']['livraison']}zgiebv.csv")
-                    for v in ds_mean.data_vars:
-                        df = ds_mean[v].swap_dims({"geom": "SIGLE"}).to_pandas()
-                        df.to_csv(f"{filename}_{v}.csv")
+                        # Prepare CSV
+                        filename = f"{xs.CONFIG['io']['livraison']}{out.attrs['dataset:id']}_{out.attrs['dataset:domain']}"
 
-                        with open(f"{filename}_{v}_metadata.json", 'w') as fp:
-                            json.dump(ds_mean[v].attrs, fp)
+                        # Write some metadata
+                        metadata_geom = out.geom.to_dataframe()
+                        metadata_geom.to_csv(f"{xs.CONFIG['io']['livraison']}zgiebv.csv")
+                        with open(f"{filename}_metadata.json", 'w') as fp:
+                            json.dump(out.attrs, fp)
+
+                        metadata_geom.to_csv(f"{xs.CONFIG['io']['livraison']}zgiebv.csv")
+                        for v in out.data_vars:
+                            df = out[v].swap_dims({"geom": "SIGLE"}).to_pandas()
+                            df.to_csv(f"{filename}_{v}.csv")
+
+                            with open(f"{filename}_{v}_metadata.json", 'w') as fp:
+                                json.dump(out[v].attrs, fp)
 
 
 if __name__ == '__main__':

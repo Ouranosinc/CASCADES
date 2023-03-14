@@ -4,6 +4,8 @@ project:
 
 tasks:
   extract: True
+  indicators: True
+  deltas: True
 
 region:
   name: ZGIEBV
@@ -30,7 +32,9 @@ storylines:
 extract:
   search_data_catalogs_ref:
     variables_and_freqs:
-      tasmax: D
+#      tasmax: D
+      tas: D
+      pr: D
     other_search_criteria:
       source: ERA5-Land
     periods: ['1992', '2021']

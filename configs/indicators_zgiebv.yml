@@ -1,0 +1,18 @@
+realm: atmos
+indicators:
+  tg_mean_ts:
+    base: tg_mean
+    parameters:
+      freq: MS
+  tg_mean_yr:
+    base: tg_mean
+    parameters:
+      freq: AS-OCT
+  precip_accumulation_ts:
+    base: pr_sum
+    parameters:
+      freq: MS
+  precip_accumulation_yr:
+    base: pr_sum
+    parameters:
+      freq: AS-OCT

@@ -2,25 +2,143 @@ project:
   title: CASCADES
   description: Production de trames narratives pour le projet CASCADES
 
+tasks:
+  compute: False
+  hydro_stats: False
+  figure_spei: True
+  figure_hydro: True
+
 storylines:
-  cal_period: [['1992', '2021']]
+  ref_period: ['1992', '2021']
   # https://www.eea.europa.eu/data-and-maps/daviz/global-average-air-temperature-anomalies-6#tab-dashboard-01
   # Real 1991-2020 = +0.80°C  (mix NOAA, NASA, HadCRUT4)
   # https://www.metoffice.gov.uk/hadobs/hadcrut5/data/current/download.html
   # https://www.carbonbrief.org/analysis-why-the-new-met-office-temperature-record-shows-faster-warming-since-1970s/
   # Real 1992-2021 = +0.91°C  (HadCRUT5)
-  warming_levels: [0.91, 1.5, 2, 3, 4]
+  warming_levels: [0.91]
+#  warming_levels: [0.91, 1.5, 2, 3, 4]
+
+extract:
+  subset_warming_level:
+    window: 30
 
 analogs:
   targets:
-    2021: ['OBVBM', 'OBVZB', 'GROBEC', 'SCABRIC', 'COBARIC', 'OBV du ChÃªne', 'OBVRLY',
-           'ABRINORD', 'CBE', 'CBJC', 'CARA', 'AGIR MaskinongÃ©', 'COBAMIL', 'COPERNIC', 'COVABAR',
-           'OBV-Capitale', 'COGESAF', 'OBV CAPSA', 'COBAVER-VS', 'OBV Yamaska', 'SAMBBA']
+    2021:
+      region: ['OBVBM', 'OBVZB', 'GROBEC', 'SCABRIC', 'COBARIC', 'OBV du ChÃªne', 'OBVRLY',
+               'ABRINORD', 'CBE', 'CBJC', 'CARA', 'AGIR MaskinongÃ©', 'COBAMIL', 'COPERNIC', 'COVABAR',
+               'OBV-Capitale', 'COGESAF', 'OBV CAPSA', 'COBAVER-VS', 'OBV Yamaska', 'SAMBBA']
+      rivers: ["SLSO00941"]
+
 #    2018: ['Gaspesie']
 #    2012: ['Outaouais Aval', 'Outaouais Amont']
-  criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11]]
+  compute_criteria:
+    v1:
+      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+      weights_close_far: [1, 0.33, 0]
+      weights_2_1: [1, 0.5, 0.33]
+      normalise: False
+    v1n:
+      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+      weights_close_far: [1, 0.33, 0]
+      weights_2_1: [1, 0.5, 0.33]
+      normalise: True
+    v2:
+      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+      weights_close_far: [ 1, 0.33, 0 ]
+      weights_2_1: [ 1, 0.33, 0.1 ]
+      normalise: False
+    v2n:
+      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+      weights_close_far: [ 1, 0.33, 0 ]
+      weights_2_1: [ 1, 0.33, 0.1 ]
+      normalise: True
+    v3:
+      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+      weights_close_far: [ 1, 0.33, 0 ]
+      weights_2_1: [ 1, 1, 1 ]
+      normalise: False
+    v3n:
+      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+      weights_close_far: [ 1, 0.33, 0 ]
+      weights_2_1: [ 1, 1, 1 ]
+      normalise: True
+    v4:
+      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+      weights_close_far: [ 1, 0.33, 0 ]
+      weights_2_1: [ 1, 0.5, 0.33 ]
+      normalise: False
+    v4n:
+      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+      weights_close_far: [ 1, 0.33, 0 ]
+      weights_2_1: [ 1, 0.5, 0.33 ]
+      normalise: True
+    v5:
+      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+      weights_close_far: [ 1, 0.33, 0 ]
+      weights_2_1: [ 1, 0.33, 0.1 ]
+      normalise: False
+    v5n:
+      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+      weights_close_far: [ 1, 0.33, 0 ]
+      weights_2_1: [ 1, 0.33, 0.1 ]
+      normalise: True
+    v6:
+      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+      weights_close_far: [ 1, 0.33, 0 ]
+      weights_2_1: [ 1, 1, 1 ]
+      normalise: False
+    v6n:
+      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+      weights_close_far: [ 1, 0.33, 0 ]
+      weights_2_1: [ 1, 1, 1 ]
+      normalise: True
+
+figures:
+  freshet_earliness:
+    bnds:
+      start: -60
+      stop: 60
+      num: 9
+    cmap: RdBu
+  freshet_volume:
+    bnds:
+      start: -100
+      stop: 100
+      num: 9
+    cmap: RdBu
+  lowest_volume_vs_eco:
+    bnds:
+      start: -100
+      stop: 100
+      num: 9
+    cmap: RdBu
+  sum_under_eco:
+    bnds:
+      start: 0
+      stop: 100
+      num: 9
+    cmap: hot_r
+  longest_under_eco:
+    bnds:
+      start: 0
+      stop: 100
+      num: 9
+    cmap: hot_r
+  season_start:
+    bnds:
+      start: -100
+      stop: 100
+      num: 9
+    cmap: RdBu
+  season_end:
+    bnds:
+      start: -100
+      stop: 100
+      num: 9
+    cmap: RdBu_r
 
 dask:
-  n_workers: 2
+  n_workers: 5
   threads_per_worker: 3
   memory_limit: 20GB
