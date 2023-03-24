@@ -3,9 +3,11 @@ project:
   description: Production de trames narratives pour le projet CASCADES
 
 tasks:
-  extract: True
+  extract: False
   indicators: True
   deltas: True
+  evap: False
+  chirps: True
 
 region:
   name: ZGIEBV
@@ -20,8 +22,14 @@ aggregate:
     kwargs:
       skipna: True
 
+variables_and_units:
+  tasmax: degC
+  tg_mean_mon: degC
+  tg_mean_yr: degC
+
 storylines:
-  cal_period: [['1992', '2021']]
+  ref_period: ['1992', '2021']
+  out_period: ['1992', '2021']
   # https://www.eea.europa.eu/data-and-maps/daviz/global-average-air-temperature-anomalies-6#tab-dashboard-01
   # Real 1991-2020 = +0.80°C  (mix NOAA, NASA, HadCRUT4)
   # https://www.metoffice.gov.uk/hadobs/hadcrut5/data/current/download.html
@@ -33,11 +41,11 @@ extract:
   search_data_catalogs_ref:
     variables_and_freqs:
 #      tasmax: D
-      tas: D
+#      tas: D
       pr: D
     other_search_criteria:
       source: ERA5-Land
-    periods: ['1992', '2021']
+    periods: ['1980', '2021']
 #  search_data_catalogs_sim:
 #    variables_and_freqs:
 #      pr: D

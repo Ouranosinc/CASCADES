@@ -1,0 +1,112 @@
+figures:
+  doy_14qmax:
+    clim:
+      bnds:
+        start: 61
+        stop: 181
+        num: 9
+      cmap: gist_rainbow
+    deltas:
+      bnds:
+        start: -60
+        stop: 60
+        num: 9
+      cmap: RdBu
+  14qmax:
+    clim:
+      bnds:
+        start: 0
+        stop: 200
+        num: 9
+      cmap: Blues
+    deltas:
+      bnds:
+        start: -100
+        stop: 100
+        num: 9
+      cmap: RdBu
+  7qmin:
+    clim:
+      bnds:
+        start: 0
+        stop: 10
+        num: 9
+      cmap: Blues
+    deltas:
+      bnds:
+        start: -100
+        stop: 100
+        num: 13
+      cmap: RdBu
+  7q2:
+    clim:
+      bnds:
+        start: 0
+        stop: 10
+        num: 9
+      cmap: Blues
+  days_under_7q2:
+    clim:
+      bnds:
+        start: 0
+        stop: 60
+        num: 9
+      cmap: hot_r
+    deltas:
+      bnds:
+        start: -60
+        stop: 60
+        num: 9
+      cmap: RdBu_r
+  max_consecutive_days_under_7q2:
+    clim:
+      bnds:
+        start: 0
+        stop: 60
+        num: 9
+      cmap: hot_r
+    deltas:
+      bnds:
+        start: -60
+        stop: 60
+        num: 9
+      cmap: RdBu_r
+  season_start:
+    clim:
+      bnds:
+        start: 136
+        stop: 256
+        num: 9
+      cmap: gist_rainbow
+    deltas:
+      bnds:
+        start: -60
+        stop: 60
+        num: 9
+      cmap: RdBu
+  season_end:
+    clim:
+      bnds:
+        start: 198
+        stop: 318
+        num: 9
+      cmap: gist_rainbow
+    deltas:
+      bnds:
+        start: -60
+        stop: 60
+        num: 9
+      cmap: RdBu_r
+  season_length:
+    clim:
+      bnds:
+        start: 0
+        stop: 125
+        num: 9
+      cmap: hot_r
+    deltas:
+      bnds:
+        start: -60
+        stop: 60
+        num: 9
+      cmap: RdBu_r

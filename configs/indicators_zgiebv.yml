@@ -1,18 +1,36 @@
 realm: atmos
 indicators:
-  tg_mean_ts:
+  tg_mean_mon:
     base: tg_mean
     parameters:
       freq: MS
   tg_mean_yr:
     base: tg_mean
     parameters:
-      freq: AS-OCT
-  precip_accumulation_ts:
-    base: pr_sum
+      freq: AS-DEC
+  precip_accumulation_mon:
+    base: prcptot
     parameters:
       freq: MS
   precip_accumulation_yr:
-    base: pr_sum
+    base: prcptot
     parameters:
-      freq: AS-OCT
+      freq: AS-DEC
+#  evspsblpot_accumulation_mon:
+#    base: prcptot
+#    input:
+#      pr: evspsblpot
+#    parameters:
+#      freq: MS
+#    cf_attrs:
+#      long_name: Total accumulated evapotranspiration
+#      description: Total accumulated evapotranspiration.
+#  evspsblpot_accumulation_yr:
+#    base: prcptot
+#    input:
+#      pr: evspsblpot
+#    parameters:
+#      freq: AS-DEC
+#    cf_attrs:
+#      long_name: Total accumulated evapotranspiration
+#      description: Total accumulated evapotranspiration.

@@ -11,17 +11,17 @@ import geopandas as gpd
 import cartopy
 import matplotlib
 import os
-import glob
-import shutil
 from distributed import Client
 
 import figures
+from utils import get_target_region, sort_analogs, atlas_radeau_common, fix_infocrue
 
 xs.load_config("configs/cfg_analogs.yml", "paths.yml")
 
 
 def main():
-    matplotlib.use("QtAgg")
+    # matplotlib.use("QtAgg")
+
     pcat = xs.ProjectCatalog(xs.CONFIG["project"]["path"])
 
     if xs.CONFIG["tasks"]["compute"]:
@@ -47,7 +47,7 @@ def main():
                         pcat.update_from_ds(perf, path=filename)
 
     if xs.CONFIG["tasks"]["hydro_stats"]:
-        stations = _atlas_radeau_common()["TRONCON_ID"]
+        stations = atlas_radeau_common()["TRONCON_ID"]
 
         hcat = xs.DataCatalog(xs.CONFIG["dpphc"]["atlas2022"])
         for target_year in xs.CONFIG["analogs"]["targets"]:
@@ -179,7 +179,7 @@ def main():
         proj = cartopy.crs.PlateCarree()
 
         # Open the RADEAU shapefiles
-        stations = _atlas_radeau_common()
+        stations = atlas_radeau_common()
         cv = dict(zip(stations["ATLAS2018"], stations["TRONCON_ID"]))
         shp = gpd.read_file(f"{xs.CONFIG['gis']}RADEAU/CONSOM_SURF_BV_CF1_WGS84.shp")
         shp["BV_ID"] = shp["BV_ID"].str[0:3].str.cat(shp["BV_ID"].str[4:])
@@ -202,38 +202,42 @@ def main():
                     lon_bnds = [region_perf.lon.min(), region_perf.lon.max()]
                     lat_bnds = [region_perf.lat.min(), region_perf.lat.max()]
 
+                    blend = {k: [] for k in xs.CONFIG["figures"]}
                     for j in [0, 5]:
                         # Open the reference
-                        stats_ref = pcat.search(type="reconstruction-hydro", processing_level=f"{target_year}-stats").to_dask()
+                        stats_ref = pcat.search(type="reconstruction-hydro", processing_level=f"indicators", xrfreq="AS-DEC").to_dask()
+                        stats_ref_fx = pcat.search(type="reconstruction-hydro", processing_level=f"indicators", xrfreq="fx").to_dask()
                         [stats_ref[c].load() for c in stats_ref.coords]
 
                         # Plot
-                        plt.subplots(6, len(stats_ref.data_vars), figsize=(35, 15))
+                        plt.subplots(6, len(xs.CONFIG["figures"]), figsize=(35, 15))
                         plt.suptitle(f"Analogues de l'année {target_year} - +{warming_level}°C vs pré-industriel - {v}")
 
                         ii = 1
                         for vv in xs.CONFIG["figures"]:
-                            if stats_ref[vv].dtype == '<m8[ns]':
-                                stats_ref[vv] = stats_ref[vv].dt.days
-                                stats_ref[vv].attrs["units"] = "days"
-                            if vv == "season_end":
-                                stats_ref[vv] = stats_ref[vv] - 244  # vs. Sept. 1st
-                                stats_ref[vv].attrs["units"] = "days"
-                            if vv == "season_start":
-                                stats_ref[vv] = stats_ref[vv] - 152  # vs. June  1st
-                                stats_ref[vv].attrs["units"] = "days"
+                            with xr.set_options(keep_attrs=True):
+                                if "days_under_7q2" in vv:
+                                    data = stats_ref[vv].sel(time=slice(str(target_year), str(target_year))).dt.days
+                                    data.attrs["units"] = "days"
+                                elif vv == "7qmin":
+                                    data = ((stats_ref[vv].sel(time=slice(str(target_year), str(target_year))) - stats_ref_fx["7q2"]) / stats_ref_fx["7q2"] * 100).squeeze()
+                                    data.name = vv
+                                elif stats_ref[vv].attrs["units"] == "dayofyear":
+                                    data = stats_ref[vv].sel(time=slice(str(target_year), str(target_year))) - stats_ref[vv].mean(dim="time")
+                                else:
+                                    data = (stats_ref[vv].sel(time=slice(str(target_year), str(target_year))) - stats_ref[vv].mean(dim="time")) / stats_ref[vv].mean(dim="time") * 100
 
                             bounds = np.linspace(**xs.CONFIG["figures"][vv]["bnds"])
                             norm = matplotlib.colors.BoundaryNorm(boundaries=bounds, ncolors=256)
                             cmap = xs.CONFIG["figures"][vv]["cmap"]
 
-                            ax = plt.subplot(6, len(stats_ref.data_vars), ii, projection=proj)
-                            figures.templates.map_hydro(ax, stats_ref[vv], shp=shp,
+                            ax = plt.subplot(6, len(xs.CONFIG["figures"]), ii, projection=proj)
+                            figures.templates.map_hydro(ax, data, shp=shp,
                                                         lon_bnds=lon_bnds, lat_bnds=lat_bnds, legend=True, linewidth=0.25,
                                                         linestyle=":", edgecolor="k", norm=norm, cmap=cmap)
                             shp_zg.plot(ax=ax, facecolor="None", edgecolor="k")
 
-                            plt.title(f"{vv} ({stats_ref[vv].attrs['units']})")
+                            plt.title(f"{vv} ({data.attrs['units']})")
                             if ii == 1:
                                 ax.set_yticks([])
                                 ax.set_ylabel("Portrait")
@@ -255,6 +259,8 @@ def main():
                                 if vv == "season_start":
                                     ds[vv] = ds[vv] - 152  # vs. June  1st
                                     ds[vv].attrs["units"] = "days"
+
+                                blend[vv].extend([ds[vv]])
 
                                 bounds = np.linspace(**xs.CONFIG["figures"][vv]["bnds"])
                                 norm = matplotlib.colors.BoundaryNorm(boundaries=bounds, ncolors=256)
@@ -279,6 +285,71 @@ def main():
                         os.makedirs(xs.CONFIG['io']['figures'], exist_ok=True)
                         plt.savefig(f"{xs.CONFIG['io']['figures']}hydro-analogs-{target_year}_{warming_level}degC-{v}-{j}.png")
                         plt.close()
+
+                    # BLEND
+                    # Open the reference
+                    stats_ref = pcat.search(type="reconstruction-hydro", processing_level=f"{target_year}-stats").to_dask()
+                    [stats_ref[c].load() for c in stats_ref.coords]
+
+                    # Plot
+                    plt.subplots(4, len(stats_ref.data_vars), figsize=(35, 15))
+                    plt.suptitle(f"Analogues de l'année {target_year} - +{warming_level}°C vs pré-industriel - {v}")
+
+                    ii = 1
+                    for vv in xs.CONFIG["figures"]:
+                        if stats_ref[vv].dtype == '<m8[ns]':
+                            stats_ref[vv] = stats_ref[vv].dt.days
+                            stats_ref[vv].attrs["units"] = "days"
+                        if vv == "season_end":
+                            stats_ref[vv] = stats_ref[vv] - 244  # vs. Sept. 1st
+                            stats_ref[vv].attrs["units"] = "days"
+                        if vv == "season_start":
+                            stats_ref[vv] = stats_ref[vv] - 152  # vs. June  1st
+                            stats_ref[vv].attrs["units"] = "days"
+
+                        bounds = np.linspace(**xs.CONFIG["figures"][vv]["bnds"])
+                        norm = matplotlib.colors.BoundaryNorm(boundaries=bounds, ncolors=256)
+                        cmap = xs.CONFIG["figures"][vv]["cmap"]
+
+                        ax = plt.subplot(4, len(stats_ref.data_vars), ii, projection=proj)
+                        figures.templates.map_hydro(ax, stats_ref[vv], shp=shp,
+                                                    lon_bnds=lon_bnds, lat_bnds=lat_bnds, legend=True, linewidth=0.25,
+                                                    linestyle=":", edgecolor="k", norm=norm, cmap=cmap)
+                        shp_zg.plot(ax=ax, facecolor="None", edgecolor="k")
+
+                        plt.title(f"{vv} ({stats_ref[vv].attrs['units']})")
+                        if ii == 1:
+                            ax.set_yticks([])
+                            ax.set_ylabel("Portrait")
+
+                        ii = ii + 1
+
+                    for j in [1, 5, 10]:
+                        for vv in xs.CONFIG["figures"]:
+                            da = xr.concat(blend[vv][0:j], dim="realization").mean(dim="realization", keep_attrs=True)
+
+                            bounds = np.linspace(**xs.CONFIG["figures"][vv]["bnds"])
+                            norm = matplotlib.colors.BoundaryNorm(boundaries=bounds, ncolors=256)
+                            cmap = xs.CONFIG["figures"][vv]["cmap"]
+
+                            ax = plt.subplot(4, len(stats_ref.data_vars), ii, projection=proj)
+                            figures.templates.map_hydro(ax, da, shp=shp,
+                                                        lon_bnds=lon_bnds, lat_bnds=lat_bnds, legend=True, linewidth=0.25,
+                                                        linestyle=":", edgecolor="k", norm=norm, cmap=cmap)
+                            shp_zg.plot(ax=ax, facecolor="None", edgecolor="k")
+
+                            plt.title("")
+                            if vv == list(xs.CONFIG["figures"])[0]:
+                                ax.set_yticks([])
+                                ax.set_ylabel(f"Blend of the best {j} analogs")
+
+                            ii = ii + 1
+
+                    plt.tight_layout()
+
+                    os.makedirs(xs.CONFIG['io']['figures'], exist_ok=True)
+                    plt.savefig(f"{xs.CONFIG['io']['figures']}hydro-analogs-{target_year}_{warming_level}degC-{v}-blend.png")
+                    plt.close()
 
 
 def compute_criteria(ref, hist,
@@ -379,163 +450,6 @@ def streamflow_stats(da, target_year, ds = None, to_level: str = None):
         out.attrs["cat:processing_level"] = to_level
 
     return out
-
-
-def get_target_region(target_year: int):
-    shp = gpd.read_file(f"{xs.CONFIG['gis']}ZGIEBV/ZGIEBV_WGS84.shp")
-    target_region = shp.loc[shp["SIGLE"].isin(xs.CONFIG["analogs"]["targets"][target_year]["region"])]
-
-    return target_region
-
-
-def sort_analogs(da):
-    da = da.stack({"stacked": ["time", "realization"]})
-    da = da.sortby(da)
-
-    return da
-
-
-
-
-
-def compare_streamflow(target_year: str,
-                       analogs,
-                       warming_level='0.91',
-                       station="SLSO00941"
-                       ):
-
-    # Open Reference data
-    portrait = xr.open_dataset(f"{xs.CONFIG['dpphc']['portrait']}PORTRAIT_2020_light.nc")
-    portrait = portrait.sel(time=slice('1992', '2021')).sel(percentile=50)
-    portrait["station_id"] = portrait.station_id.astype(str).str.join(dim="nchar_station_id")
-
-    # Select the station
-    portrait_station = portrait.where(portrait.station_id == station, drop=True).squeeze()
-    portrait_station_7q2 = xclim.land.freq_analysis(portrait_station.Dis, mode="min", window=7, t=2, dist="lognorm", **{"month": [5, 6, 7, 8, 9, 10, 11]})
-    portrait_station_qt = portrait_station.Dis.groupby("time.dayofyear").quantile(q=[0.10, 0.25, 0.50, 0.75, 0.90])
-
-    # Plot
-    plt.figure(figsize=(35, 15))
-    plt.fill_between(portrait_station_qt.dayofyear, portrait_station.Dis.groupby("time.dayofyear").min(dim="time"), portrait_station.Dis.groupby("time.dayofyear").max(dim="time"), facecolor="#c6dfe7")
-    plt.fill_between(portrait_station_qt.dayofyear, portrait_station_qt.sel(quantile=0.10), portrait_station_qt.sel(quantile=0.90), facecolor="#80b0c8")
-    plt.fill_between(portrait_station_qt.dayofyear, portrait_station_qt.sel(quantile=0.25), portrait_station_qt.sel(quantile=0.75), facecolor="#003366")
-    plt.plot(portrait_station_qt.dayofyear, portrait_station_qt.sel(quantile=0.50), c="k")
-    plt.plot(portrait_station.sel(time=slice(str(target_year), str(target_year))).Dis, c='r')
-    plt.hlines(portrait_station_7q2, 1, 365, linestyle="--")
-    plt.ylim([0, portrait_station.Dis.max()])
-
-    # Stats
-    portrait_under_thresh = portrait_station.sel(time=slice(f"{target_year}-04", f"{target_year}-11")).Dis < portrait_station_7q2
-    portrait_under_thresh.sum()
-    consecutive = portrait_under_thresh.cumsum(dim='time') - portrait_under_thresh.cumsum(dim='time').where(portrait_under_thresh.values == 0).ffill(dim='time').fillna(0)
-    consecutive.max()
-    consecutive.where(consecutive > 7, drop=True).time.min()
-    consecutive.where(consecutive > 7, drop=True).time.max()
-
-    q_spring = portrait_station.sel(time=slice(f"{target_year}-02", f"{target_year}-07")).Dis
-    qmax = q_spring.where(q_spring >= 0.5 * q_spring.max(), drop=True)
-    qmax.idxmax()
-    qsub = q_spring.sel(time=slice(str(qmax.idxmax().values.astype(str)), f"{target_year}-07")).where(q_spring < 0.1 * qmax.max().values)
-    qsub.dropna(dim="time").time.min()
-
-    q_spring_qt = portrait_station_qt.sel(quantile=.50).rolling({"dayofyear": 7}, center=True).mean()
-    qmax_qt = q_spring_qt.where(q_spring_qt >= 0.8 * q_spring_qt.max(), drop=True)
-    tmp = xr.DataArray(pd.date_range(f"{target_year}-01-01", f"{target_year}-12-31"), coords={"time": pd.date_range(f"{target_year}-01-01", f"{target_year}-12-31")})
-    qmax_qt = tmp.where(tmp.dt.dayofyear.isin(qmax_qt.dayofyear), drop=True)
-    qmax_qt.idxmin()
-    qmax_qt.idxmax()
-    qmax_qt.idxmax().dt.dayofyear - qmax.idxmax().dt.dayofyear
-
-    #TODO: volume minimal vs 7q2
-
-
-    # Open Analog and subset the 30-year data
-    atlas2022 = xs.DataCatalog(xs.CONFIG["dpphc"]["atlas2022"])
-
-    an = []
-    for i in range(5):
-        a = analogs.isel(stacked=i)
-        ds = atlas2022.search(id=f".*MG24HQ.*{'_'.join(str(a.realization.values).split('.')[0].split('_')[0:3])}.*{'_'.join(str(a.realization.values).split('.')[0].split('_')[3:])}.*").to_dask()
-        ds["station_id"] = ds.station_id.astype(str)
-        ds.attrs["cat:mip_era"] = "CMIP5"
-        ds = xs.subset_warming_level(ds, wl=float(warming_level), window=30)
-
-        ds_station = ds.where(ds.station_id.compute() == station, drop=True).squeeze().compute()
-        an.extend([ds_station.sel(time=slice(str(a.time.dt.year.values), str(a.time.dt.year.values))).Dis])
-        if i == 0:
-            ds_station_7q2 = xclim.land.freq_analysis(ds_station.Dis, mode="min", window=7, t=2, dist="lognorm", **{"month": [5, 6, 7, 8, 9, 10, 11]})
-            ds_station_qt = ds_station.Dis.groupby("time.dayofyear").quantile(q=[0.10, 0.25, 0.50, 0.75, 0.90])
-
-            # Plot
-            plt.figure()
-            plt.fill_between(ds_station_qt.dayofyear, ds_station.Dis.groupby("time.dayofyear").min(dim="time"), ds_station.Dis.groupby("time.dayofyear").max(dim="time"), facecolor="#c6dfe7")
-            plt.fill_between(ds_station_qt.dayofyear, ds_station_qt.sel(quantile=0.10), ds_station_qt.sel(quantile=0.90), facecolor="#80b0c8")
-            plt.fill_between(ds_station_qt.dayofyear, ds_station_qt.sel(quantile=0.25), ds_station_qt.sel(quantile=0.75), facecolor="#003366")
-            plt.plot(ds_station_qt.dayofyear, ds_station_qt.sel(quantile=0.50), c="k")
-            plt.hlines(ds_station_7q2, 1, 365, linestyle="--")
-    # for i in range(len(an)):
-    #     plt.plot(an[i], c='r', linewidth=0.5)
-    for i in range(len(an)):
-        an[i]["time"] = an[i]["time"].dt.dayofyear
-    # plt.plot(xr.concat(an, dim="realization").median(dim="realization"), c='g', linewidth=3)
-    plt.plot(xr.concat(an[0:3], dim="realization").median(dim="realization"), c='g', linewidth=2)
-
-
-def _atlas_radeau_common():
-
-    stations_radeau = gpd.read_file(f"{xs.CONFIG['gis']}RADEAU/CONSOM_SURF_BV_CF1_WGS84.shp")["BV_ID"]
-    # Fix IDs
-    stations_radeau = stations_radeau.str[0:3].str.cat(stations_radeau.str[4:])
-    stations_atlas = pd.read_csv(f"{xs.CONFIG['dpphc']['portrait']}Metadata_Portrait.csv", encoding="ISO-8859-1")
-    stations = stations_atlas.loc[stations_atlas["ATLAS2018"].isin(stations_radeau)]
-    # When an old reach is now covered by multiple, keep only the largest one
-    stations = stations.sort_values('SUPERFICIE_TRONCON_num_km2')
-    stations = stations.drop_duplicates(subset=["ATLAS2018"], keep="last")
-
-    return stations
-
-
-def fix_infocrue(cat):
-    def _fix_infocrue_file(ds):
-        # drainage_area as coordinate
-        ds = ds.assign_coords({"drainage_area": ds["drainage_area"]})
-        # load coordinates
-        [ds[c].load() for c in ds.coords]
-        # fix station_id
-        if "nchar_station_id" in ds.dims:
-            ds["station_id"] = ds.station_id.astype(str).str.join(dim="nchar_station_id")
-        else:
-            ds["station_id"] = ds.station_id.astype(str)
-        # add coordinate to station
-        ds = ds.assign_coords({"station": ds["station"]})
-        # rename Dis
-        ds = ds.rename({"Dis": "discharge"})
-        ds["discharge"] = ds["discharge"].astype("float32")
-        return ds
-
-    ds_all = cat.to_dask(xarray_open_kwargs={"chunks": {"station": 500, "time": 365}})
-    if "percentile" in ds_all:
-        ds_all = ds_all.chunk({"percentile": 1})
-        rechunk = {"station": 500, "time": 365, "percentile": 1}
-    else:
-        rechunk = {"station": 500, "time": 365}
-    ds_all = _fix_infocrue_file(ds_all)
-
-    # loop to prevent dask from dying
-    for i in range(0, len(ds_all.station), 1500):
-        with Client(**xs.CONFIG["dask"]) as c:
-            ds = ds_all.isel(station=slice(i, i + 1500))
-            xs.save_to_zarr(ds, filename=f"{xs.CONFIG['tmp_rechunk']}{ds.attrs['cat:id']}_{i}.zarr",
-                            rechunk=rechunk)
-
-    with Client(**xs.CONFIG["dask"]) as c:
-        files = glob.glob(f"{xs.CONFIG['tmp_rechunk']}{cat.unique('id')[0]}_*.zarr")
-        ds = xr.open_mfdataset(files, engine="zarr")
-        [ds[c].load() for c in ds.coords]
-        xs.save_to_zarr(ds, filename=f"{xs.CONFIG['tmp_rechunk']}{ds.attrs['cat:id']}.zarr")
-
-    for f in files:
-        shutil.rmtree(f)
 
 
 if __name__ == '__main__':

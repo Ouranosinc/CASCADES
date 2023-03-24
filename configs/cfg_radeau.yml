@@ -1,0 +1,32 @@
+project:
+  title: CASCADES
+  description: Production de trames narratives pour le projet CASCADES
+
+tasks:
+  extract: False
+  indicators: False
+  additional_indicators: False
+  deltas: False
+  extract_radeau: True
+
+datasets: [ref]
+
+extract:
+  periods: ['1991', '2021']
+
+storylines:
+  ref_period: ['1992', '2021']
+  # https://www.eea.europa.eu/data-and-maps/daviz/global-average-air-temperature-anomalies-6#tab-dashboard-01
+  # Real 1991-2020 = +0.80°C  (mix NOAA, NASA, HadCRUT4)
+  # https://www.metoffice.gov.uk/hadobs/hadcrut5/data/current/download.html
+  # https://www.carbonbrief.org/analysis-why-the-new-met-office-temperature-record-shows-faster-warming-since-1970s/
+  # Real 1992-2021 = +0.91°C  (HadCRUT5)
+  warming_levels: [0.91, 1.5, 2, 3, 4]
+
+additional_indicators: ["days_under_7q2"]
+#additional_indicators: ["days_under_7q2", "7qmin", "lowflow_season", "freshet"]
+
+dask:
+  n_workers: 10
+  threads_per_worker: 3
+  memory_limit: 20GB

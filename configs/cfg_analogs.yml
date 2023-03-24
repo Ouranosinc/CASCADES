@@ -5,7 +5,7 @@ project:
 tasks:
   compute: False
   hydro_stats: False
-  figure_spei: True
+  figure_spei: False
   figure_hydro: True
 
 storylines:
@@ -95,31 +95,31 @@ analogs:
       normalise: True
 
 figures:
-  freshet_earliness:
+  doy_14qmax:
     bnds:
       start: -60
       stop: 60
       num: 9
     cmap: RdBu
-  freshet_volume:
+  14qmax:
     bnds:
       start: -100
       stop: 100
       num: 9
     cmap: RdBu
-  lowest_volume_vs_eco:
+  7qmin:
     bnds:
       start: -100
       stop: 100
       num: 9
     cmap: RdBu
-  sum_under_eco:
+  days_under_7q2:
     bnds:
       start: 0
       stop: 100
       num: 9
     cmap: hot_r
-  longest_under_eco:
+  max_consecutive_days_under_7q2:
     bnds:
       start: 0
       stop: 100
@@ -127,14 +127,14 @@ figures:
     cmap: hot_r
   season_start:
     bnds:
-      start: -100
-      stop: 100
+      start: -60
+      stop: 60
       num: 9
     cmap: RdBu
   season_end:
     bnds:
-      start: -100
-      stop: 100
+      start: -60
+      stop: 60
       num: 9
     cmap: RdBu_r
 
