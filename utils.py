@@ -14,7 +14,10 @@ def get_target_region(target_year: int):
 
 
 def sort_analogs(da):
-    da = da.stack({"stacked": ["time", "realization"]})
+    if "time" in da.dims:
+        da = da.stack({"stacked": ["time", "realization"]})
+    else:
+        da = da.stack({"stacked": ["year", "realization"]})
     da = da.sortby(da)
 
     return da

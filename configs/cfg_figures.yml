@@ -36,7 +36,7 @@ figures:
       bnds:
         start: -100
         stop: 100
-        num: 13
+        num: 9
       cmap: RdBu
   7q2:
     clim:
@@ -101,7 +101,7 @@ figures:
     clim:
       bnds:
         start: 0
-        stop: 125
+        stop: 150
         num: 9
       cmap: hot_r
     deltas:

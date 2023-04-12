@@ -20,7 +20,7 @@ xs.load_config("configs/cfg_analogs.yml", "paths.yml")
 
 
 def main():
-    # matplotlib.use("QtAgg")
+    matplotlib.use("QtAgg")
 
     pcat = xs.ProjectCatalog(xs.CONFIG["project"]["path"])
 
@@ -41,6 +41,11 @@ def main():
 
                         perf = compute_criteria(ref, hist, target_year=target_year, **xs.CONFIG["analogs"]["compute_criteria"][v])
                         perf.attrs["cat:processing_level"] = f"{warming_level}-{perf.attrs['cat:processing_level']}-{v}"
+
+                        if "time" not in perf.dims:
+                            perf = perf.drop_vars(["time"])
+                            perf.attrs["cat:xrfreq"] = "fx"
+                            perf.attrs["cat:frequency"] = "fx"
 
                         filename = f"{xs.CONFIG['io']['stats']}{perf.attrs['cat:id']}_{perf.attrs['cat:processing_level']}.zarr"
                         xs.save_to_zarr(perf, filename=filename)
@@ -120,10 +125,13 @@ def main():
                     region_perf = xs.extract.clisops_subset(xr.ones_like(ref.spei3.isel(time=0)), {"method": "shape",
                                                                                                    "shape": {"shape": get_target_region(target_year),
                                                                                                              "buffer": 0.1}})
-                    lon_bnds = [region_perf.lon.min() - 1, region_perf.lon.max() + 1]
-                    lat_bnds = [region_perf.lat.min() - 1, region_perf.lat.max() + 1]
+                    lon_bnds = [-80., -64.]
+                    lat_bnds = [44.75, 54.]
+                    # lon_bnds = [region_perf.lon.min() - 1, region_perf.lon.max() + 1]
+                    # lat_bnds = [region_perf.lat.min() - 1, region_perf.lat.max() + 1]
                     region_perf = region_perf.interp_like(ref.spei3.isel(time=0)).fillna(0)
 
+                    blend = {f"{k[0]}-{k[1]}": [] for k in criteria}
                     for j in [0, 5]:
                         # Plot
                         plt.subplots(6, len(criteria), figsize=(35, 15))
@@ -148,15 +156,24 @@ def main():
 
                             for c in criteria:
                                 ax = plt.subplot(6, len(criteria), ii, projection=proj)
-                                figures.templates.cartopy_map(ax, ds[c[0]].sel(time=f"{str(analogs.isel(stacked=i).time.dt.year.values)}-{c[1]:02d}-01").squeeze(),
+                                if "time" in perf.dims:
+                                    da = ds[c[0]].sel(time=f"{str(analogs.isel(stacked=i).time.dt.year.values)}-{c[1]:02d}-01").squeeze()
+                                else:
+                                    da = ds[c[0]].sel(time=f"{str(analogs.isel(stacked=i).year.values)}-{c[1]:02d}-01").squeeze()
+                                blend[f"{c[0]}-{c[1]}"].extend([da])
+                                figures.templates.cartopy_map(ax, da,
                                                               highlight=region_perf, hide_labels=True, lon_bnds=lon_bnds, lat_bnds=lat_bnds,
                                                               levels=levels, cmap=cmap, add_colorbar=False)
 
                                 plt.title("")
                                 if c == criteria[0]:
                                     ax.set_yticks([])
-                                    ax.set_ylabel(f"{str(analogs.isel(stacked=i).realization.values).split('.')[0].split('_')[-1]} | "
-                                               f"{str(analogs.isel(stacked=i).time.dt.year.values)}\nsum(RMSE) = {np.round(analogs.isel(stacked=i).values, 2)}")
+                                    if "time" in perf.dims:
+                                        ax.set_ylabel(f"{str(analogs.isel(stacked=i).realization.values).split('.')[0].split('_')[-1]} | "
+                                                      f"{str(analogs.isel(stacked=i).time.dt.year.values)}\nsum(RMSE) = {np.round(analogs.isel(stacked=i).values, 2)}")
+                                    else:
+                                        ax.set_ylabel(f"{str(analogs.isel(stacked=i).realization.values).split('.')[0].split('_')[-1]} | "
+                                                      f"{str(analogs.isel(stacked=i).year.values)}\nsum(RMSE) = {np.round(analogs.isel(stacked=i).values, 2)}")
 
                                 ii = ii + 1
 
@@ -174,6 +191,54 @@ def main():
                         os.makedirs(xs.CONFIG['io']['figures'], exist_ok=True)
                         plt.savefig(f"{xs.CONFIG['io']['figures']}SPEI-analogs-{target_year}_{warming_level}degC-{v}-{j}.png")
                         plt.close()
+
+                    # BLEND
+                    # Plot
+                    plt.subplots(4, len(criteria), figsize=(35, 15))
+                    plt.suptitle(f"Analogues de l'année {target_year} - +{warming_level}°C vs pré-industriel - {v}")
+
+                    ii = 1
+                    for c in criteria:
+                        ax = plt.subplot(4, len(criteria), ii, projection=proj)
+                        figures.templates.cartopy_map(ax, ref[c[0]].sel(time=f"{target_year}-{c[1]:02d}-01"), highlight=region_perf,
+                                                      hide_labels=True,
+                                                      lon_bnds=lon_bnds, lat_bnds=lat_bnds, levels=levels, cmap=cmap, add_colorbar=False)
+
+                        plt.title(f"{c[0].upper()}-{c[1]}")
+                        if ii == 1:
+                            ax.set_yticks([])
+                            ax.set_ylabel("ERA5-Land")
+
+                        ii = ii + 1
+
+                    for j in [1, 5, 10]:
+                        for c in list(blend.keys()):
+                            ax = plt.subplot(4, len(criteria), ii, projection=proj)
+                            da = xr.concat(blend[c][0:j], dim="realization").mean(dim="realization", keep_attrs=True)
+                            figures.templates.cartopy_map(ax, da,
+                                                          highlight=region_perf, hide_labels=True, lon_bnds=lon_bnds, lat_bnds=lat_bnds,
+                                                          levels=levels, cmap=cmap, add_colorbar=False)
+
+                            plt.title("")
+                            if c == list(blend.keys())[0]:
+                                ax.set_yticks([])
+                                ax.set_ylabel(f"Blend of the best {j} analogs")
+                            ii = ii + 1
+
+                    plt.tight_layout()
+                    plt.subplots_adjust(right=0.9)
+                    cax = plt.axes([0.925, 0.1, 0.025, 0.8])
+
+                    sm = plt.cm.ScalarMappable(cmap=cmap, norm=matplotlib.colors.BoundaryNorm(boundaries=levels, ncolors=len(levels) * 2 + 1))
+                    sm._A = []
+                    plt.colorbar(sm, cax=cax, extend="both")
+
+                    plt.tight_layout()
+                    plt.subplots_adjust(right=0.9)
+
+                    os.makedirs(xs.CONFIG['io']['figures'], exist_ok=True)
+                    plt.savefig(f"{xs.CONFIG['io']['figures']}SPEI-analogs-{target_year}_{warming_level}degC-{v}-blend.png")
+                    plt.close()
 
     if xs.CONFIG["tasks"]["figure_hydro"]:
         proj = cartopy.crs.PlateCarree()
@@ -363,17 +428,20 @@ def compute_criteria(ref, hist,
 
     # Prepare weights
     target_region = get_target_region(target_year)
-    full_domain = ref[criteria[0][0]].sel(time=f"{target_year}-06-01").chunk({"lon": -1})
-
+    full_domain = ref[list(ref.data_vars)[0]].sel(time=f"{target_year}-06-01").chunk({"lon": -1})
     region_close = xs.extract.clisops_subset(xr.ones_like(full_domain), {"method": "shape", "shape": {"shape": target_region, "buffer": 0.1}}).interp_like(full_domain)
     region_far = xs.extract.clisops_subset(xr.ones_like(full_domain), {"method": "shape", "shape": {"shape": target_region, "buffer": 0.5}}).interp_like(full_domain)
 
     # Loop on each criterion
     rsme_sum = []
     for c in criteria:
-        target = ref[c[0]].sel(time=f"{target_year}-{c[1]:02d}-01").chunk({"lon": -1})
-        candidates = hist[c[0]].where(hist.time.dt.month == c[1], drop=True).chunk({"lon": -1})
-        candidates["time"] = pd.to_datetime(candidates["time"].dt.strftime("%Y-01-01"))
+        if isinstance(c, list):
+            target = ref[c[0]].sel(time=f"{target_year}-{c[1]:02d}-01").chunk({"lon": -1})
+            candidates = hist[c[0]].where(hist.time.dt.month == c[1], drop=True).chunk({"lon": -1})
+            candidates["time"] = pd.to_datetime(candidates["time"].dt.strftime("%Y-01-01"))
+        else:
+            target = ref[c].sel(time=slice(str(target_year), str(target_year))).mean(dim="time").chunk({"lon": -1})
+            candidates = hist[c].groupby("time.year").mean(dim="time").chunk({"lon": -1})
 
         weights = xr.where(region_close == 1, weights_close_far[0], xr.where(region_far == 1, weights_close_far[1], weights_close_far[2])) * \
                   xr.where(target <= -2, weights_2_1[0], xr.where(target <= -1, weights_2_1[1], weights_2_1[2]))
@@ -403,7 +471,7 @@ def compute_criteria(ref, hist,
     return out
 
 
-def streamflow_stats(da, target_year, ds = None, to_level: str = None):
+def streamflow_stats(da, target_year, ds=None, to_level: str = None):
 
     da = convert_calendar(da, 'noleap').chunk({"time": -1})
 

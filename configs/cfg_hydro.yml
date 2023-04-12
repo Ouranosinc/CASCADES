@@ -1,0 +1,37 @@
+project:
+  title: CASCADES
+  description: Production de trames narratives pour le projet CASCADES
+
+tasks:
+  extract: True
+  indicators: True
+  additional_indicators: True
+  extract_radeau: False
+  extract_dams: False
+
+#datasets: [ref, 0.91-2021-v1n, 0.91-2021-v2n, 0.91-2021-v3n, 0.91-2021-v4n, 0.91-2021-v5n, 0.91-2021-v6n, 0.91-2021-v7, 0.91-2021-vspecial, 0.91-2021-v1, 0.91-2021-v2, 0.91-2021-v3, 0.91-2021-v4, 0.91-2021-v5, 0.91-2021-v6]
+datasets: [0.91-2021-v1, 0.91-2021-v2, 0.91-2021-v3, 0.91-2021-v4, 0.91-2021-v5, 0.91-2021-v6, 0.91-2021-v7,
+           0.91-2018-v1, 0.91-2018-v2, 0.91-2018-v3, 0.91-2018-v4, 0.91-2018-v5, 0.91-2018-v6, 0.91-2018-v7,
+           0.91-2012-v1, 0.91-2012-v2, 0.91-2012-v3, 0.91-2012-v4, 0.91-2012-v5, 0.91-2012-v6, 0.91-2012-v7,
+           0.91-2010-v1, 0.91-2010-v2, 0.91-2010-v3, 0.91-2010-v4, 0.91-2010-v5, 0.91-2010-v6, 0.91-2010-v7,
+           0.91-1995-v1, 0.91-1995-v2, 0.91-1995-v3, 0.91-1995-v4, 0.91-1995-v5, 0.91-1995-v6, 0.91-1995-v7]
+#datasets: [0.91-2021-v3n, 0.91-2018-v3n, 0.91-2012-v3n, 0.91-2010-v3n, 0.91-1995-v3n]
+
+extract:
+  periods: ['1991', '2021']
+
+storylines:
+  ref_period: ['1992', '2021']
+  # https://www.eea.europa.eu/data-and-maps/daviz/global-average-air-temperature-anomalies-6#tab-dashboard-01
+  # Real 1991-2020 = +0.80°C  (mix NOAA, NASA, HadCRUT4)
+  # https://www.metoffice.gov.uk/hadobs/hadcrut5/data/current/download.html
+  # https://www.carbonbrief.org/analysis-why-the-new-met-office-temperature-record-shows-faster-warming-since-1970s/
+  # Real 1992-2021 = +0.91°C  (HadCRUT5)
+  warming_levels: [0.91, 1.5, 2, 3, 4]
+
+additional_indicators: ["days_under_7q2", "7qmin", "lowflow_season", "freshet"]
+
+dask:
+  n_workers: 10
+  threads_per_worker: 3
+  memory_limit: 20GB
