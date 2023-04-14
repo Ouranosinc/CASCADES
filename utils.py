@@ -13,6 +13,16 @@ def get_target_region(target_year: int):
     return target_region
 
 
+def get_stations_within_target_region(data, target_region):
+    from shapely.geometry import Point
+    _pnts = [Point(data.lon[i], data.lat[i]) for i in range(len(data.lon))]
+    pnts = gpd.GeoDataFrame(geometry=_pnts, index=data.station_id)
+    pnts = pnts.assign(**{f"a{key}": pnts.within(geom) for key, geom in target_region.geometry.items()})
+    pnts = pnts.drop("geometry", axis=1)
+
+    return list(pnts.index[pnts.any(axis=1)])
+
+
 def sort_analogs(da):
     if "time" in da.dims:
         da = da.stack({"stacked": ["time", "realization"]})

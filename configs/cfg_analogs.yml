@@ -3,9 +3,8 @@ project:
   description: Production de trames narratives pour le projet CASCADES
 
 tasks:
-  compute: False
-  hydro_stats: False
-  figure_spei: True
+  compute: True
+  figure_spei: False
   figure_hydro: False
 
 storylines:
@@ -15,8 +14,8 @@ storylines:
   # https://www.metoffice.gov.uk/hadobs/hadcrut5/data/current/download.html
   # https://www.carbonbrief.org/analysis-why-the-new-met-office-temperature-record-shows-faster-warming-since-1970s/
   # Real 1992-2021 = +0.91°C  (HadCRUT5)
-#  warming_levels: [0.91]
-  warming_levels: [0.91, 1.5, 2, 3, 4]
+  warming_levels: [0.91]
+#  warming_levels: [0.91, 1.5, 2, 3, 4]
 
 extract:
   subset_warming_level:
@@ -39,126 +38,86 @@ analogs:
       region: ['OBVZB', 'OBVRLY', 'CBJC', 'CARA', 'AGIR MaskinongÃ©', 'COBAMIL', 'OBV-Capitale',
                'OBV CAPSA', 'COBAVER-VS', 'SAMBBA', 'OBVAJ', 'COBALI', 'ABRINORD', 'ABV des 7',
                'OBVRPNS',  'OBVT', 'OBVHCN', 'OBVLSJ', 'OBV-CM', 'OBVS', 'BVSM']
+#    1995:
+#      region: ['OBVZB', 'OBVRLY', 'CBJC', 'CARA', 'AGIR MaskinongÃ©', 'COBAMIL', 'OBV-Capitale',
+#               'OBV CAPSA', 'COBAVER-VS', 'SAMBBA', 'OBVAJ', 'COBALI', 'ABRINORD', 'ABV des 7',
+#               'OBVRPNS',  'OBVT', 'OBVHCN', 'OBVLSJ', 'OBV-CM', 'OBVS', 'BVSM', 'OBVM', 'OBVD']
     1995:
-      region: ['OBVZB', 'OBVRLY', 'CBJC', 'CARA', 'AGIR MaskinongÃ©', 'COBAMIL', 'OBV-Capitale',
-               'OBV CAPSA', 'COBAVER-VS', 'SAMBBA', 'OBVAJ', 'COBALI', 'ABRINORD', 'ABV des 7',
-               'OBVRPNS',  'OBVT', 'OBVHCN', 'OBVLSJ', 'OBV-CM', 'OBVS', 'BVSM', 'OBVM', 'OBVD']
+      region: ['OBVHCN', 'OBVLSJ', 'OBV-CM', 'OBVS', 'OBVM', 'OBVD']
 
   compute_criteria:
-    v1:
-      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
-      weights_close_far: [1, 0.33, 0]
-      weights_2_1: [1, 0.5, 0.33]
-      normalise: False
-    v1n:
-      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
-      weights_close_far: [1, 0.33, 0]
-      weights_2_1: [1, 0.5, 0.33]
-      normalise: True
+#    v1:
+#      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+#      weights_close_far: [1, 0.33, 0]
+#      weights_2_1: [1, 0.5, 0.33]
+#      normalise: False
+#    v1n:
+#      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+#      weights_close_far: [1, 0.33, 0]
+#      weights_2_1: [1, 0.5, 0.33]
+#      normalise: True
     v2:
       criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
       weights_close_far: [ 1, 0.33, 0 ]
       weights_2_1: [ 1, 0.33, 0.1 ]
       normalise: False
-    v2n:
-      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
-      weights_close_far: [ 1, 0.33, 0 ]
-      weights_2_1: [ 1, 0.33, 0.1 ]
-      normalise: True
-    v3:
-      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
-      weights_close_far: [ 1, 0.33, 0 ]
-      weights_2_1: [ 1, 1, 1 ]
-      normalise: False
-    v3n:
-      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
-      weights_close_far: [ 1, 0.33, 0 ]
-      weights_2_1: [ 1, 1, 1 ]
-      normalise: True
-    v4:
-      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
-      weights_close_far: [ 1, 0.33, 0 ]
-      weights_2_1: [ 1, 0.5, 0.33 ]
-      normalise: False
-    v4n:
-      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
-      weights_close_far: [ 1, 0.33, 0 ]
-      weights_2_1: [ 1, 0.5, 0.33 ]
-      normalise: True
-    v5:
-      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
-      weights_close_far: [ 1, 0.33, 0 ]
-      weights_2_1: [ 1, 0.33, 0.1 ]
-      normalise: False
-    v5n:
-      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
-      weights_close_far: [ 1, 0.33, 0 ]
-      weights_2_1: [ 1, 0.33, 0.1 ]
-      normalise: True
-    v6:
-      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
-      weights_close_far: [ 1, 0.33, 0 ]
-      weights_2_1: [ 1, 1, 1 ]
-      normalise: False
-    v6n:
-      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
-      weights_close_far: [ 1, 0.33, 0 ]
-      weights_2_1: [ 1, 1, 1 ]
-      normalise: True
-    v7:
-      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
-      weights_close_far: [ 1, 1, 1 ]
-      weights_2_1: [ 1, 0.33, 0.1 ]
-      normalise: False
-    vspecial:
-      criteria: ["spei3", "spei6", "spei9"]
-      weights_close_far: [ 1, 1, 1 ]
-      weights_2_1: [ 1, 0.33, 0.1 ]
-      normalise: True
+#    v2n:
+#      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+#      weights_close_far: [ 1, 0.33, 0 ]
+#      weights_2_1: [ 1, 0.33, 0.1 ]
+#      normalise: True
+#    v3:
+#      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+#      weights_close_far: [ 1, 0.33, 0 ]
+#      weights_2_1: [ 1, 1, 1 ]
+#      normalise: False
+##    v3n:
+##      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+##      weights_close_far: [ 1, 0.33, 0 ]
+##      weights_2_1: [ 1, 1, 1 ]
+##      normalise: True
+##    v4:
+##      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+##      weights_close_far: [ 1, 0.33, 0 ]
+##      weights_2_1: [ 1, 0.5, 0.33 ]
+##      normalise: False
+##    v4n:
+##      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+##      weights_close_far: [ 1, 0.33, 0 ]
+##      weights_2_1: [ 1, 0.5, 0.33 ]
+##      normalise: True
+#    v5:
+#      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+#      weights_close_far: [ 1, 0.33, 0 ]
+#      weights_2_1: [ 1, 0.33, 0.1 ]
+#      normalise: False
+##    v5n:
+##      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+##      weights_close_far: [ 1, 0.33, 0 ]
+##      weights_2_1: [ 1, 0.33, 0.1 ]
+##      normalise: True
+#    v6:
+#      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+#      weights_close_far: [ 1, 0.33, 0 ]
+#      weights_2_1: [ 1, 1, 1 ]
+#      normalise: False
+##    v6n:
+##      criteria: [ [ "spei6", 5 ], [ "spei3", 9 ], [ "spei6", 10 ], [ "spei9", 10 ] ]
+##      weights_close_far: [ 1, 0.33, 0 ]
+##      weights_2_1: [ 1, 1, 1 ]
+##      normalise: True
+#    v7:
+#      criteria: [["spei6", 5], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11], ["spei6", 10]]
+#      weights_close_far: [ 1, 1, 1 ]
+#      weights_2_1: [ 1, 0.33, 0.1 ]
+#      normalise: False
+##    vspecial:
+##      criteria: ["spei3", "spei6", "spei9"]
+##      weights_close_far: [ 1, 1, 1 ]
+##      weights_2_1: [ 1, 0.33, 0.1 ]
+##      normalise: True
 
-figures:
-  doy_14qmax:
-    bnds:
-      start: -60
-      stop: 60
-      num: 9
-    cmap: RdBu
-  14qmax:
-    bnds:
-      start: -100
-      stop: 100
-      num: 9
-    cmap: RdBu
-  7qmin:
-    bnds:
-      start: -100
-      stop: 100
-      num: 9
-    cmap: RdBu
-  days_under_7q2:
-    bnds:
-      start: 0
-      stop: 100
-      num: 9
-    cmap: hot_r
-  max_consecutive_days_under_7q2:
-    bnds:
-      start: 0
-      stop: 100
-      num: 9
-    cmap: hot_r
-  season_start:
-    bnds:
-      start: -60
-      stop: 60
-      num: 9
-    cmap: RdBu
-  season_end:
-    bnds:
-      start: -60
-      stop: 60
-      num: 9
-    cmap: RdBu_r
+  hydro: [doy_14qmax, 14qmax, season_start, season_end, season_length, discharge_mean_mam, discharge_mean_jja, discharge_mean_son, 7qmin, days_under_7q2, max_consecutive_days_under_7q2]
 
 dask:
   n_workers: 5

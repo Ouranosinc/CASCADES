@@ -204,7 +204,8 @@ with tab2:
                     cols[1].pyplot(fig)
 
         elif show_som:
-            v = [['doy_14qmax', '14qmax', ''], ['season_start', 'season_end', 'season_length'], ['7qmin', 'days_under_7q2', 'max_consecutive_days_under_7q2']]
+            v = [['doy_14qmax', '14qmax', ''], ['season_start', 'season_end', 'season_length'],
+                 ['discharge_mean_mam', 'discharge_mean_jja', 'discharge_mean_son'], ['7qmin', 'days_under_7q2', 'max_consecutive_days_under_7q2']]
 
             for vv in v:
                 cols = st.columns(3)
