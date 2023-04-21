@@ -12,6 +12,7 @@ import json
 from shapely.geometry import Point
 import geopandas as gpd
 from collections import defaultdict
+from copy import deepcopy
 
 from utils import fix_infocrue, atlas_radeau_common, sort_analogs
 
@@ -20,6 +21,7 @@ xs.load_config("paths.yml", "configs/cfg_hydro.yml")
 def main():
 
     def _extract_func(wl=None, analog=None):
+        analog = analog or []
         ds = xr.open_zarr(f"{xs.CONFIG['tmp_rechunk']}{cat.unique('id')[0]}.zarr")
 
         # RADEAU
@@ -28,19 +30,15 @@ def main():
             stations["ATLAS2018"].str[3:])  # The RADEAU shapefile has 1 too many 0s
         cv = dict(zip(stations["TRONCON_ID"], stations["ATLAS2018"]))
 
-        # Official Atlas2022
-        # atlas_meta = pd.read_csv(xs.CONFIG["dpphc"]["meta_atlas2022"], encoding='latin-1')
-
         # load coordinates and subset
         [ds[c].load() for c in ds.coords]
         if "percentile" in ds:
             ds = ds.sel(time=slice(xs.CONFIG["extract"]["periods"][0], xs.CONFIG["extract"]["periods"][1]), percentile=50)
         else:
             ds.attrs["cat:driving_model"] = "CanESM2"
-            # ref7q2 = xs.subset_warming_level(ds, wl=0.91, window=30).squeeze()
+            ds_hist = xs.subset_warming_level(ds, wl=0.91, window=30).squeeze()
             ds = xs.subset_warming_level(ds, wl=wl, window=30).squeeze()
         ds = ds.where(ds.station_id.isin(stations["TRONCON_ID"].to_list()) | (ds.drainage_area > 25), drop=True)
-        # ds = ds.where(ds.station_id.isin(stations["TRONCON_ID"].to_list() + atlas_meta.loc[atlas_meta["MASQUE"] == 2]["TRONCON_ID"].to_list()) | (ds.drainage_area > 1000), drop=True)
         ds = ds.chunk({"station": 500, "time": -1})
 
         # Add the Atlas2018 name
@@ -56,10 +54,11 @@ def main():
                 ind_dict["AS-JAN"].attrs["cat:processing_level"] = "indicators"
                 ind_dict["AS-JAN"].attrs["cat:frequency"] = "yr"
                 ind_dict["AS-JAN"].attrs["cat:xrfreq"] = "AS-JAN"
-            # if wl not in [None, 0.91]:
-            #     ind_dict_ref = dict()
-            #     ind_dict_ref["fx"] = pcat.search(id=ds["cat:id"], processing_level="indicators-0.91").to_dask()
 
+            if wl not in [None, 0.91]:
+                ind_hist = xs.compute_indicators(ds_hist, indicators="configs/indicators_hydro.yml")["fx"]
+
+            overwrite = {"doy_14qmax": False, "season_start": False, "season_end": False, "season_histstart": False, "season_histend": False}
             if xs.CONFIG["tasks"]["additional_indicators"]:
                 if "days_under_7q2" in xs.CONFIG["additional_indicators"]:
                     bool_under_eco = (ds.discharge < ind_dict["fx"]["7q2"].squeeze()).where(ds.discharge.time.dt.month.isin([5, 6, 7, 8, 9, 10, 11]),
@@ -73,17 +72,17 @@ def main():
                                                                                   "description": "Maximum consecutive streamflow under 7Q2 for month[5, 6, 7, 8, 9, 10, 11].",
                                                                                   "units": "d"}
 
-                    # if wl not in [None, 0.91]:
-                    #     bool_under_eco = (ds.discharge < ind_dict_ref["fx"]["7q2"].squeeze()).where(ds.discharge.time.dt.month.isin([5, 6, 7, 8, 9, 10, 11]), other=False)
-                    #     ind_dict['AS-JAN']["days_under_ref7q2"] = bool_under_eco.resample({"time": "AS-JAN"}).sum(dim="time")
-                    #     ind_dict['AS-JAN']["days_under_ref7q2"].attrs = {"long_name": "Number of days below the 7Q2.",
-                    #                                                      "description": "Streamflow under 7Q2 for month[5, 6, 7, 8, 9, 10, 11].",
-                    #                                                      "units": "d"}
-                    #     ind_dict['AS-JAN']["max_consecutive_days_under_ref7q2"] = xcrl.longest_run(bool_under_eco, freq="AS-JAN")
-                    #     ind_dict['AS-JAN']["max_consecutive_days_under_ref7q2"].attrs = {
-                    #         "long_name": "Maximum consecutive number of days below the 7Q2.",
-                    #         "description": "Maximum consecutive streamflow under 7Q2 for month[5, 6, 7, 8, 9, 10, 11].",
-                    #         "units": "d"}
+                    if wl not in [None, 0.91]:
+                        bool_under_eco = (ds.discharge < ind_hist["7q2"].squeeze()).where(ds.discharge.time.dt.month.isin([5, 6, 7, 8, 9, 10, 11]), other=False)
+                        ind_dict['AS-JAN']["days_under_hist7q2"] = bool_under_eco.resample({"time": "AS-JAN"}).sum(dim="time")
+                        ind_dict['AS-JAN']["days_under_hist7q2"].attrs = {"long_name": "Number of days below the 7Q2.",
+                                                                          "description": "Streamflow under 7Q2 for month[5, 6, 7, 8, 9, 10, 11].",
+                                                                          "units": "d"}
+                        ind_dict['AS-JAN']["max_consecutive_days_under_hist7q2"] = xcrl.longest_run(bool_under_eco, freq="AS-JAN")
+                        ind_dict['AS-JAN']["max_consecutive_days_under_hist7q2"].attrs = {
+                            "long_name": "Maximum consecutive number of days below the 7Q2.",
+                            "description": "Maximum consecutive streamflow under 7Q2 for month[5, 6, 7, 8, 9, 10, 11].",
+                            "units": "d"}
 
                 if "7qmin" in xs.CONFIG["additional_indicators"]:
                     ind_dict['AS-JAN']["7qmin"] = ds.discharge.rolling({"time": 7}, center=True).mean(keep_attrs=True) \
@@ -102,12 +101,29 @@ def main():
                         ind_dict['AS-JAN']["doy_14qmax"].attrs["description"] = "Dayofyear of the maximum 14-day discharge for month[2, 3, 4, 5, 6]"
                         ind_dict['AS-JAN']["doy_14qmax"].attrs["units"] = "dayofyear"
                     else:
-                        q14_a = q14.sel(time=q14.time.dt.year.isin(analog))
-                        with xclim.set_options(data_validation="log"):
-                            ind_dict['AS-JAN']["doy_14qmax"] = xcl.doy_qmax(q14_a, freq="AS-JAN")
-                        ind_dict['AS-JAN']["doy_14qmax"].attrs["long_name"] = "Dayofyear of the maximum 14-day discharge"
-                        ind_dict['AS-JAN']["doy_14qmax"].attrs["description"] = "Dayofyear of the maximum 14-day discharge for month[2, 3, 4, 5, 6]"
-                        ind_dict['AS-JAN']["doy_14qmax"].attrs["units"] = "dayofyear"
+                        already_exists = pcat.search(id=ds.attrs["cat:id"], processing_level=f"indicators-{wl}", variable="doy_14qmax")
+                        if (len(already_exists) == 0) & (len(analog) > 0):
+                            q14_a = q14.sel(time=q14.time.dt.year.isin(analog))
+                            with xclim.set_options(data_validation="log"):
+                                ind_dict['AS-JAN']["doy_14qmax"] = xcl.doy_qmax(q14_a, freq="AS-JAN")
+                            ind_dict['AS-JAN']["doy_14qmax"].attrs["long_name"] = "Dayofyear of the maximum 14-day discharge"
+                            ind_dict['AS-JAN']["doy_14qmax"].attrs[
+                                "description"] = "Dayofyear of the maximum 14-day discharge for month[2, 3, 4, 5, 6]"
+                            ind_dict['AS-JAN']["doy_14qmax"].attrs["units"] = "dayofyear"
+
+                        elif len(already_exists) == 1:
+                            already_exists = already_exists.to_dask()["doy_14qmax"].dropna(dim="time", how="all")
+                            to_calc = list(set(analog).difference(set(already_exists.time.dt.year.values)))
+                            if len(to_calc) > 0:
+                                overwrite["doy_14qmax"] = True
+                                q14_a = q14.sel(time=q14.time.dt.year.isin(to_calc))
+                                with xclim.set_options(data_validation="log"):
+                                    doy_14qmax = xcl.doy_qmax(q14_a, freq="AS-JAN")
+                                ind_dict['AS-JAN']["doy_14qmax"] = xr.concat((deepcopy(already_exists), doy_14qmax), dim="time")
+                                ind_dict['AS-JAN']["doy_14qmax"].attrs["long_name"] = "Dayofyear of the maximum 14-day discharge"
+                                ind_dict['AS-JAN']["doy_14qmax"].attrs[
+                                    "description"] = "Dayofyear of the maximum 14-day discharge for month[2, 3, 4, 5, 6]"
+                                ind_dict['AS-JAN']["doy_14qmax"].attrs["units"] = "dayofyear"
 
                 if "lowflow_season" in xs.CONFIG["additional_indicators"]:
                     thresh = ds.discharge.mean(dim="time") - (ds.discharge.mean(dim="time") - ind_dict["fx"]["7q2"].squeeze()) * 0.85
@@ -123,30 +139,84 @@ def main():
                             "long_name": "Last dayofyear where the 7-day discharge is below 15% of the mean annual flow for 7 consecutive days",
                             "units": "dayofyear"}
                     else:
-                        bool_under_low_yr = bool_under_low.sel(time=bool_under_low.time.dt.year.isin(analog))
-                        with xclim.set_options(data_validation="log"):
-                            ind_dict['AS-JAN']["season_start"] = xcrl.first_run(bool_under_low_yr, window=7, coord="dayofyear", freq="AS-JAN")
-                        ind_dict['AS-JAN']["season_start"].attrs = {
-                            "long_name": "First dayofyear where the discharge is below 15% of the mean annual flow for 7 consecutive days",
-                            "units": "dayofyear"}
+                        already_exists = pcat.search(id=ds.attrs["cat:id"], processing_level=f"indicators-{wl}", variable=["season_start", "season_end"])
+                        if (len(already_exists) == 0) & (len(analog) > 0):
+                            bool_under_low_yr = bool_under_low.sel(time=bool_under_low.time.dt.year.isin(analog))
+                            with xclim.set_options(data_validation="log"):
+                                ind_dict['AS-JAN']["season_start"] = xcrl.first_run(bool_under_low_yr, window=7, coord="dayofyear", freq="AS-JAN")
+                            ind_dict['AS-JAN']["season_start"].attrs = {
+                                "long_name": "First dayofyear where the discharge is below 15% of the mean annual flow for 7 consecutive days",
+                                "units": "dayofyear"}
 
-                        ind_dict['AS-JAN']["season_end"] = bool_under_low_yr.resample({"time": "AS-JAN"}).map(xcrl.last_run, window=7, coord="dayofyear")
-                        ind_dict['AS-JAN']["season_end"].attrs = {
-                            "long_name": "Last dayofyear where the 7-day discharge is below 15% of the mean annual flow for 7 consecutive days",
-                            "units": "dayofyear"}
+                            ind_dict['AS-JAN']["season_end"] = bool_under_low_yr.resample({"time": "AS-JAN"}).map(xcrl.last_run, window=7, coord="dayofyear")
+                            ind_dict['AS-JAN']["season_end"].attrs = {
+                                "long_name": "Last dayofyear where the 7-day discharge is below 15% of the mean annual flow for 7 consecutive days",
+                                "units": "dayofyear"}
 
-                    # if wl not in [None, 0.91]:
-                    #     thresh = ds.discharge.mean(dim="time") - (ds.discharge.mean(dim="time") - ind_dict_ref["fx"]["7q2"].squeeze()) * 0.85
-                    #     bool_under_low = (ds.discharge < thresh).where(ds.time.dt.month.isin([5, 6, 7, 8, 9, 10, 11]), other=False)
-                    #     ind_dict['AS-JAN']["season_start_ref"] = xcrl.first_run(bool_under_low, window=7, coord="dayofyear", freq="AS-JAN")
-                    #     ind_dict['AS-JAN']["season_start_ref"].attrs = {
-                    #         "long_name": "First dayofyear where the discharge is below 15% of the mean annual flow for 7 consecutive days",
-                    #         "units": "dayofyear"}
-                    #
-                    #     ind_dict['AS-JAN']["season_end_ref"] = bool_under_low.resample({"time": "AS-JAN"}).map(xcrl.last_run, window=7, coord="dayofyear")
-                    #     ind_dict['AS-JAN']["season_end_ref"].attrs = {
-                    #         "long_name": "Last dayofyear where the 7-day discharge is below 15% of the mean annual flow for 7 consecutive days",
-                    #         "units": "dayofyear"}
+                        elif len(already_exists) == 1:
+                            already_exists_start = already_exists.to_dask()["season_start"].dropna(dim="time", how="all")
+                            to_calc = list(set(analog).difference(set(already_exists_start.time.dt.year.values)))
+                            if len(to_calc) > 0:
+                                overwrite["season_start"] = True
+                                bool_under_low_yr = bool_under_low.sel(time=bool_under_low.time.dt.year.isin(to_calc))
+                                with xclim.set_options(data_validation="log"):
+                                    season_start = xcrl.first_run(bool_under_low_yr, window=7, coord="dayofyear", freq="AS-JAN")
+                                ind_dict['AS-JAN']["season_start"] = xr.concat((deepcopy(already_exists_start), season_start), dim="time")
+                                ind_dict['AS-JAN']["season_start"].attrs = {
+                                    "long_name": "First dayofyear where the discharge is below 15% of the mean annual flow for 7 consecutive days",
+                                    "units": "dayofyear"}
+                            already_exists_end = already_exists.to_dask()["season_end"].dropna(dim="time", how="all")
+                            to_calc = list(set(analog).difference(set(already_exists_end.time.dt.year.values)))
+                            if len(to_calc) > 0:
+                                overwrite["season_end"] = True
+                                bool_under_low_yr = bool_under_low.sel(time=bool_under_low.time.dt.year.isin(to_calc))
+                                season_end = bool_under_low_yr.resample({"time": "AS-JAN"}).map(xcrl.last_run, window=7, coord="dayofyear")
+                                ind_dict['AS-JAN']["season_end"] = xr.concat((deepcopy(already_exists_end), season_end), dim="time")
+                                ind_dict['AS-JAN']["season_end"].attrs = {
+                                    "long_name": "Last dayofyear where the 7-day discharge is below 15% of the mean annual flow for 7 consecutive days",
+                                    "units": "dayofyear"}
+
+                        if wl not in [None, 0.91]:
+                            thresh = ds.discharge.mean(dim="time") - (ds.discharge.mean(dim="time") - ind_hist["7q2"].squeeze()) * 0.85
+                            bool_under_low = (ds.discharge < thresh).where(ds.time.dt.month.isin([5, 6, 7, 8, 9, 10, 11]), other=False)
+
+                            already_exists = pcat.search(id=ds.attrs["cat:id"], processing_level=f"indicators-{wl}",  variable=["season_histstart", "season_histend"])
+                            if (len(already_exists) == 0) & (len(analog) > 0):
+                                bool_under_low_yr = bool_under_low.sel(time=bool_under_low.time.dt.year.isin(analog))
+                                with xclim.set_options(data_validation="log"):
+                                    ind_dict['AS-JAN']["season_histstart"] = xcrl.first_run(bool_under_low_yr, window=7, coord="dayofyear", freq="AS-JAN")
+                                ind_dict['AS-JAN']["season_histstart"].attrs = {
+                                    "long_name": "First dayofyear where the discharge is below 15% of the mean annual flow for 7 consecutive days",
+                                    "units": "dayofyear"}
+
+                                ind_dict['AS-JAN']["season_histend"] = bool_under_low_yr.resample({"time": "AS-JAN"}).map(xcrl.last_run, window=7,
+                                                                                                                      coord="dayofyear")
+                                ind_dict['AS-JAN']["season_histend"].attrs = {
+                                    "long_name": "Last dayofyear where the 7-day discharge is below 15% of the mean annual flow for 7 consecutive days",
+                                    "units": "dayofyear"}
+
+                            elif len(already_exists) == 1:
+                                already_exists_start = already_exists.to_dask()["season_histstart"].dropna(dim="time", how="all")
+                                to_calc = list(set(analog).difference(set(already_exists_start.time.dt.year.values)))
+                                if len(to_calc) > 0:
+                                    overwrite["season_histstart"] = True
+                                    bool_under_low_yr = bool_under_low.sel(time=bool_under_low.time.dt.year.isin(to_calc))
+                                    with xclim.set_options(data_validation="log"):
+                                        season_start = xcrl.first_run(bool_under_low_yr, window=7, coord="dayofyear", freq="AS-JAN")
+                                    ind_dict['AS-JAN']["season_histstart"] = xr.concat((deepcopy(already_exists_start), season_start), dim="time")
+                                    ind_dict['AS-JAN']["season_histstart"].attrs = {
+                                        "long_name": "First dayofyear where the discharge is below 15% of the mean annual flow for 7 consecutive days",
+                                        "units": "dayofyear"}
+                                already_exists_end = already_exists.to_dask()["season_histend"].dropna(dim="time", how="all")
+                                to_calc = list(set(analog).difference(set(already_exists_end.time.dt.year.values)))
+                                if len(to_calc) > 0:
+                                    overwrite["season_histend"] = True
+                                    bool_under_low_yr = bool_under_low.sel(time=bool_under_low.time.dt.year.isin(to_calc))
+                                    season_end = bool_under_low_yr.resample({"time": "AS-JAN"}).map(xcrl.last_run, window=7, coord="dayofyear")
+                                    ind_dict['AS-JAN']["season_histend"] = xr.concat((deepcopy(already_exists_end), season_end), dim="time")
+                                    ind_dict['AS-JAN']["season_histend"].attrs = {
+                                        "long_name": "Last dayofyear where the 7-day discharge is below 15% of the mean annual flow for 7 consecutive days",
+                                        "units": "dayofyear"}
 
         else:
             ind_dict = {"D": ds}
@@ -162,6 +232,13 @@ def main():
             filename = f"{xs.CONFIG['io']['stats']}{out.attrs['cat:id']}_{out.attrs['cat:processing_level']}_{out.attrs['cat:xrfreq']}.zarr"
             xs.save_to_zarr(out, filename, mode="a", rechunk={"station": 500, "time": -1})
             pcat.update_from_ds(out, filename)
+
+            if freq == "AS-JAN":
+                to_ov = [vv for vv in overwrite.keys() if ((overwrite[vv] is True) and (vv in out))]
+                if len(to_ov) > 0:
+                    out2 = out[to_ov]
+                    xs.save_to_zarr(out2, filename, mode="o", rechunk={"station": 500, "time": -1})
+                    pcat.update_from_ds(out2, filename)
 
     hcat = xs.DataCatalog(xs.CONFIG["dpphc"]["atlas2022"])
     pcat = xs.ProjectCatalog(xs.CONFIG["project"]["path"])
@@ -183,30 +260,42 @@ def main():
                 for d in set(xs.CONFIG["datasets"]).difference(["ref"]):
                     dparts = d.split("-")
                     if float(dparts[0]) == wl:
-                        perf = pcat.search(processing_level=f"{dparts[0]}-performance-vs-{dparts[1]}-{dparts[2]}").to_dask()
+                        perf = pcat.search(processing_level=f"{dparts[0]}-performance-vs-{dparts[1]}").to_dask()
                         best = sort_analogs(perf.rmse)[0:5]
                         for r, y in zip(best.realization, best.time):
                             analogs[str(r.realization.values).split(".")[0]].extend([int(y.dt.year.values)])
 
                 if len(analogs) > 0:
                     for a in analogs.keys():
-                        if not pcat.exists_in_cat(type="simulation-hydro", processing_level=f"indicators-{wl}", member=a.split("_")[-1]):
-                            # Open the simulation
-                            cat = hcat.search(type="simulation-hydro", processing_level="raw", member=a.split("_")[-1])
-                            if not os.path.isdir(f"{xs.CONFIG['tmp_rechunk']}{cat.unique('id')[0]}.zarr"):
-                                fix_infocrue(cat)
+                        # Open the simulation
+                        cat = hcat.search(type="simulation-hydro", processing_level="raw", member=a.split("_")[-1])
+                        if not os.path.isdir(f"{xs.CONFIG['tmp_rechunk']}{cat.unique('id')[0]}.zarr"):
+                            fix_infocrue(cat)
 
-                            with Client(**xs.CONFIG["dask"]) as c:
-                                _extract_func(wl=wl, analog=analogs[a])
+                        with Client(**xs.CONFIG["dask"]) as c:
+                            if wl != 0.91:
+                                # 0.91 is required to compute deltas later on
+                                _extract_func(wl=0.91)
+                            _extract_func(wl=wl, analog=analogs[a])
 
     if xs.CONFIG["tasks"]["extract_radeau"]:
-        if "ref" in xs.CONFIG["datasets"]:
-            ds_dict = pcat.search(id=".*Portrait.*", processing_level="indicators").to_dataset_dict()
+        for dataset in xs.CONFIG["datasets"]:
+            if dataset == "ref":
+                ds_dict = pcat.search(id=".*Portrait.*", processing_level="indicators").to_dataset_dict()
+            else:
+                ds_dict = pcat.search(processing_level=f"{dataset}.*").to_dataset_dict()
 
             for key, ds in ds_dict.items():
                 # load coordinates and subset
                 [ds[c].load() for c in ds.coords]
-                ds = ds.where(ds["atlas2018"] != '', drop=True).squeeze()
+                stations = atlas_radeau_common()
+                stations["ATLAS2018"] = stations["ATLAS2018"].str[0:3].str.cat(["0"] * len(stations["ATLAS2018"])).str.cat(
+                    stations["ATLAS2018"].str[3:])  # The RADEAU shapefile has 1 too many 0s
+                cv = dict(zip(stations["TRONCON_ID"], stations["ATLAS2018"]))
+
+                ds = ds.where(ds.station_id.isin(stations["TRONCON_ID"]), drop=True).squeeze()
+                # Add the Atlas2018 name
+                ds = ds.assign_coords({"atlas2018": ds.station_id.to_series().map(cv)})
 
                 # Cleanup
                 ds = xs.clean_up(ds, change_attr_prefix="dataset:", attrs_to_remove={"global": ["cat:_data_format_", "intake_esm_dataset_key"]})
@@ -271,8 +360,11 @@ def main():
         # for _, r in repertoire_barrages.iterrows():
         #     plt.scatter(r["Longitude"], r["Latitude"], color="green")
 
-        if "ref" in xs.CONFIG["datasets"]:
-            ds_dict = pcat.search(id=".*Portrait.*", processing_level="indicators").to_dataset_dict()
+        for dataset in xs.CONFIG["datasets"]:
+            if dataset == "ref":
+                ds_dict = pcat.search(id=".*Portrait.*", processing_level="indicators").to_dataset_dict()
+            else:
+                ds_dict = pcat.search(processing_level=f"{dataset}.*").to_dataset_dict()
 
             for key, ds in ds_dict.items():
                 # load coordinates and subset
@@ -293,6 +385,8 @@ def main():
 
                 for v in ds.data_vars:
                     df = ds[v].swap_dims({"station": "centrale"}).to_pandas()
+                    if isinstance(df, pd.Series):
+                        df = df.to_frame(name=v)
                     if df.index.name != "centrale":
                         df = df.T
                     # Add dams that are on the same reach as another

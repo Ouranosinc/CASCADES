@@ -1,15 +1,15 @@
 realm: land
 indicators:
-#  discharge_mean_mon:
-#    base: discharge_stats
-#    parameters:
-#      op: mean
-#      freq: MS
-#  discharge_mean_yr:
-#    base: discharge_stats
-#    parameters:
-#      op: mean
-#      freq: AS-DEC
+  discharge_mean_mon:
+    base: discharge_stats
+    parameters:
+      op: mean
+      freq: MS
+  discharge_mean_yr:
+    base: discharge_stats
+    parameters:
+      op: mean
+      freq: AS-DEC
   discharge_mean_mam:
     base: discharge_stats
     parameters:

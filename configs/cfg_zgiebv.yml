@@ -2,12 +2,14 @@ project:
   title: CASCADES
   description: Production de trames narratives pour le projet CASCADES
 
+datasets: [analog-2021-2, analog-2021-3, analog-2021-4]
+
 tasks:
-  extract: False
-  indicators: True
-  deltas: True
+  extract: True
+  indicators: False
   evap: False
-  chirps: True
+  chirps: False
+  construct: False
 
 region:
   name: ZGIEBV
@@ -29,7 +31,7 @@ variables_and_units:
 
 storylines:
   ref_period: ['1992', '2021']
-  out_period: ['1992', '2021']
+  out_period: ['1981', '2021']
   # https://www.eea.europa.eu/data-and-maps/daviz/global-average-air-temperature-anomalies-6#tab-dashboard-01
   # Real 1991-2020 = +0.80°C  (mix NOAA, NASA, HadCRUT4)
   # https://www.metoffice.gov.uk/hadobs/hadcrut5/data/current/download.html
@@ -41,22 +43,22 @@ extract:
   search_data_catalogs_ref:
     variables_and_freqs:
 #      tasmax: D
-#      tas: D
+      tas: D
       pr: D
     other_search_criteria:
       source: ERA5-Land
     periods: ['1980', '2021']
-#  search_data_catalogs_sim:
-#    variables_and_freqs:
-#      pr: D
-#      tas: D
-#    other_search_criteria:
-#      activity: ClimEx
-#      processing_level: biasadjusted
-#    periods: ['1970', '2099']
-#    allow_conversion: True
-#    match_hist_and_fut: True
-##    restrict_members: {"ordered": 3}
+  search_data_catalogs_sim:
+    variables_and_freqs:
+      pr: D
+      tas: D
+#      tasmax: D
+    other_search_criteria:
+      activity: ClimEx
+      processing_level: biasadjusted
+    periods: ['1970', '2099']
+    allow_conversion: True
+    match_hist_and_fut: True
 
   extract_dataset:
     xr_combine_kwargs:
