@@ -283,9 +283,12 @@ def main():
             if dataset == "ref":
                 ds_dict = pcat.search(id=".*Portrait.*", processing_level="indicators").to_dataset_dict()
             else:
-                ds_dict = pcat.search(processing_level=f"{dataset}.*").to_dataset_dict()
+                ds_dict = pcat.search(type=".*hydro.*", processing_level=f"{dataset}.*").to_dataset_dict()
 
             for key, ds in ds_dict.items():
+                if (ds.attrs["cat:xrfreq"] == "AS-JAN") and (dataset == "ref"):
+                    ds["season_length"] = ds["season_end"] - ds["season_start"]
+                    ds["season_length"].attrs["units"] = "d"
                 # load coordinates and subset
                 [ds[c].load() for c in ds.coords]
                 stations = atlas_radeau_common()
@@ -301,20 +304,27 @@ def main():
                 ds = xs.clean_up(ds, change_attr_prefix="dataset:", attrs_to_remove={"global": ["cat:_data_format_", "intake_esm_dataset_key"]})
 
                 # Prepare CSV
-                filename = f"{xs.CONFIG['io']['livraison']}{ds.attrs['dataset:id']}_RADEAU_{ds.attrs['dataset:processing_level']}_{ds.attrs['dataset:frequency']}"
+                if dataset == "ref":
+                    filename = f"{ds.attrs['dataset:impact_model_source']}_{ds.attrs['dataset:impact_model_project']}"
+                elif "analog" in dataset:
+                    filename = f"{ds.attrs['dataset:impact_model_source']}_{ds.attrs['dataset:impact_model_project']}_{ds.attrs['dataset:processing_level']}degC"
+                else:
+                    filename = f"{ds.attrs['dataset:activity']}_{ds.attrs['dataset:impact_model_project']}_{ds.attrs['dataset:processing_level']}degC"
 
                 # Write some metadata
                 os.makedirs(xs.CONFIG['io']['livraison'], exist_ok=True)
-                with open(f"{filename}_metadata.json", 'w') as fp:
+                with open(f"{xs.CONFIG['io']['livraison']}dataset-metadata_{filename}.json", 'w') as fp:
                     json.dump(ds.attrs, fp)
 
                 for v in ds.data_vars:
                     df = ds[v].swap_dims({"station": "atlas2018"}).to_pandas()
+                    if isinstance(df, pd.Series):
+                        df = df.to_frame(name=v)
                     if df.index.name != "atlas2018":
                         df = df.T
-                    df.to_csv(f"{filename}_{v}.csv")
+                    df.to_csv(f"{xs.CONFIG['io']['livraison']}{v}_{filename}_RADEAU.csv")
 
-                    with open(f"{filename}_{v}_metadata.json", 'w') as fp:
+                    with open(f"{xs.CONFIG['io']['livraison']}variable-metadata_{v}_{filename}.json", 'w') as fp:
                         json.dump(ds[v].attrs, fp)
 
     if xs.CONFIG["tasks"]["extract_dams"]:
@@ -364,9 +374,12 @@ def main():
             if dataset == "ref":
                 ds_dict = pcat.search(id=".*Portrait.*", processing_level="indicators").to_dataset_dict()
             else:
-                ds_dict = pcat.search(processing_level=f"{dataset}.*").to_dataset_dict()
+                ds_dict = pcat.search(type=".*hydro.*", processing_level=f"{dataset}.*").to_dataset_dict()
 
             for key, ds in ds_dict.items():
+                if (ds.attrs["cat:xrfreq"] == "AS-JAN") and (dataset == "ref"):
+                    ds["season_length"] = ds["season_end"] - ds["season_start"]
+                    ds["season_length"].attrs["units"] = "d"
                 # load coordinates and subset
                 [ds[c].load() for c in ds.coords]
                 ds = ds.assign_coords({"centrale": ds.station_id.to_series().map(troncons)})
@@ -376,11 +389,16 @@ def main():
                 ds = xs.clean_up(ds, change_attr_prefix="dataset:", attrs_to_remove={"global": ["cat:_data_format_", "intake_esm_dataset_key"]})
 
                 # Prepare CSV
-                filename = f"{xs.CONFIG['io']['livraison']}{ds.attrs['dataset:id']}_BARRAGES_{ds.attrs['dataset:processing_level']}_{ds.attrs['dataset:frequency']}"
+                if dataset == "ref":
+                    filename = f"{ds.attrs['dataset:impact_model_source']}_{ds.attrs['dataset:impact_model_project']}"
+                elif "analog" in dataset:
+                    filename = f"{ds.attrs['dataset:impact_model_source']}_{ds.attrs['dataset:impact_model_project']}_{ds.attrs['dataset:processing_level']}degC"
+                else:
+                    filename = f"{ds.attrs['dataset:activity']}_{ds.attrs['dataset:impact_model_project']}_{ds.attrs['dataset:processing_level']}degC"
 
                 # Write some metadata
                 os.makedirs(xs.CONFIG['io']['livraison'], exist_ok=True)
-                with open(f"{filename}_metadata.json", 'w') as fp:
+                with open(f"{xs.CONFIG['io']['livraison']}dataset-metadata_{filename}.json", 'w') as fp:
                     json.dump(ds.attrs, fp)
 
                 for v in ds.data_vars:
@@ -389,6 +407,7 @@ def main():
                         df = df.to_frame(name=v)
                     if df.index.name != "centrale":
                         df = df.T
+
                     # Add dams that are on the same reach as another
                     for t in set(troncons_all).difference(list(troncons.values())):
                         if troncons_all[t] in list(troncons.keys()):
@@ -398,9 +417,10 @@ def main():
                                 if len(data.index) > 1:
                                     data = data.iloc[[0, ]]
                                 df = pd.concat((df, pd.DataFrame(data.values, index=[t], columns=df.columns)))
-                    df.to_csv(f"{filename}_{v}.csv")
 
-                    with open(f"{filename}_{v}_metadata.json", 'w') as fp:
+                    df.to_csv(f"{xs.CONFIG['io']['livraison']}{v}_{filename}_BARRAGES.csv")
+
+                    with open(f"{xs.CONFIG['io']['livraison']}variable-metadata_{v}_{filename}.json", 'w') as fp:
                         json.dump(ds[v].attrs, fp)
 
 

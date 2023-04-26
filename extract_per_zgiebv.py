@@ -2,6 +2,7 @@ from distributed import Client
 import os
 import shutil
 import pandas as pd
+import xclim.ensembles as xce
 import xarray as xr
 import xscen as xs
 import json
@@ -41,16 +42,15 @@ def main():
             for key, cat in cat_dict.items():
                 with Client(**xs.CONFIG["dask"]) as c:
 
-                    # Extract tas and pr
+                    ds_dict = xs.extract_dataset(catalog=cat, region=region)
+                    ds = ds_dict["D"]
                     if "ClimEx" in key:
-                        ds_dict = xs.extract_dataset(catalog=cat, region=region)
-                        ds = ds_dict["D"]
                         ds.attrs["cat:mip_era"] = "CMIP5"
                         ds = xs.subset_warming_level(ds, wl=float(dparts[2]), window=30).squeeze()
                         [ds[c].load() for c in ds.coords]
 
                         # Regrid to ERA5-Land. Very important to do this here, otherwise evspsblpot makes dask explode in RAM
-                        ds_grid = pcat.search(source="ERA5-Land", processing_level="extracted").to_dask()
+                        ds_grid = pcat.search(source="ERA5-Land", processing_level="extracted", xrfreq="MS").to_dask()
                         chunks = xs.io.estimate_chunks(ds, ["time"], target_mb=125)
                         ds = ds.chunk(chunks)
                         ds = xs.regrid_dataset(ds, ds_grid, weights_location=f"{xs.CONFIG['io']['extract']}weights/", to_level="extracted")
@@ -61,9 +61,6 @@ def main():
                         xs.save_to_zarr(ds, f"{xs.CONFIG['io']['extract']}tmp.zarr")
                         ds = xr.open_zarr(f"{xs.CONFIG['io']['extract']}tmp.zarr")
                         [ds[c].load() for c in ds.coords]
-                    else:
-                        ds_dict = xs.extract_dataset(catalog=cat, region=region)
-                        ds = ds_dict["D"]
 
                     # Separated because we don't want to use ERA5-Land's evap
                     if xs.CONFIG["tasks"]["evap"]:
@@ -146,9 +143,6 @@ def main():
 
                 # Cleanup
                 out = out.sel(time=slice(f"{xs.CONFIG['storylines']['out_period'][0]}-01-01", f"{xs.CONFIG['storylines']['out_period'][1]}-12-31"))
-                # out = xs.clean_up(out, variables_and_units=xs.CONFIG["variables_and_units"], change_attr_prefix="dataset:",
-                #                   attrs_to_remove={"global": ["cat:_data_format_", "intake_esm_dataset_key"]})
-
                 # Cut regions that aren't fully covered by CHIRPS
                 out = out.where(~out.ZGIE.isin(['Abitibi-JamÃ©sie', 'Manicouagan', 'Duplessis', 'Haute-CÃ´te-Nord', 'Lac-Saint-Jean']))
 
@@ -164,27 +158,51 @@ def main():
                 filename = f"{xs.CONFIG['io']['extract_clim']}{out.attrs['cat:id']}_{out.attrs['cat:processing_level']}_{out.attrs['cat:xrfreq']}.zarr"
                 xs.save_to_zarr(out, filename, mode="a", rechunk={"time": -1})
                 pcat.update_from_ds(out, filename)
-                #
-                # # Prepare CSV
-                # filename = f"{xs.CONFIG['io']['livraison']}UCSB-CHG_CHIRPS2.0"
-                #
-                # # Write some metadata
-                # os.makedirs(xs.CONFIG['io']['livraison'], exist_ok=True)
-                # metadata_geom = out.geom.to_dataframe()
-                # metadata_geom.to_csv(f"{xs.CONFIG['io']['livraison']}zgiebv.csv")
-                # with open(f"{filename}_metadata.json", 'w') as fp:
-                #     json.dump(out.attrs, fp)
-                #
-                # for v in out.data_vars:
-                #     df = out[v].swap_dims({"geom": "SIGLE"}).to_pandas().T
-                #     df.to_csv(f"{filename}_{v}.csv")
-                #
-                #     with open(f"{filename}_{v}_metadata.json", 'w') as fp:
-                #         attrs = out[v].attrs
-                #         for a in attrs:
-                #             attrs[a] = str(attrs[a])
-                #         json.dump(attrs, fp)
 
+    if xs.CONFIG["tasks"]["csv"]:
+        for dataset in xs.CONFIG["datasets"]:
+            if dataset == "ref":
+                ds_dict = pcat.search(id=".*ERA5-Land.*", domain="ZGIEBV", processing_level=["extracted", "indicators"]).to_dataset_dict()
+                pr_ref = pcat.search(id=".*CHIRPS.*", domain="ZGIEBV", processing_level="indicators").to_dataset_dict()
+
+                ds_dict["ECMWF_ERA5-Land_NAM.ZGIEBV.indicators.AS-DEC"]["precip_accumulation_yr"] = pr_ref['UCSB_CHIRPS2.0_ZGIEBV.ZGIEBV.indicators.AS-DEC']["pr_yr"]
+                ds_dict["ECMWF_ERA5-Land_NAM.ZGIEBV.indicators.MS"]["precip_accumulation_mon"] = pr_ref['UCSB_CHIRPS2.0_ZGIEBV.ZGIEBV.indicators.MS']["pr_mon"]
+            else:
+                ds_dict = pcat.search(processing_level=f"{dataset}.*", domain="ZGIEBV").to_dataset_dict()
+
+            for key, ds in ds_dict.items():
+                out = xs.clean_up(ds, variables_and_units=xs.CONFIG["variables_and_units"], change_attr_prefix="dataset:",
+                                  attrs_to_remove={"global": ["cat:_data_format_", "intake_esm_dataset_key"]})
+
+                # Prepare CSV
+                if dataset == "ref":
+                    filename = f"{out.attrs['dataset:source']}_{out.attrs['dataset:domain']}"
+                elif "analog" in out.attrs['dataset:processing_level']:
+                    filename = f"{out.attrs['dataset:source']}_{out.attrs['dataset:domain']}_{out.attrs['dataset:processing_level']}degC"
+                else:
+                    filename = f"{out.attrs['dataset:activity']}_{out.attrs['dataset:member']}_{out.attrs['dataset:domain']}_{out.attrs['dataset:processing_level']}degC"
+
+                # Write some metadata
+                os.makedirs(xs.CONFIG['io']['livraison'], exist_ok=True)
+                metadata_geom = out.geom.to_dataframe()
+                metadata_geom.to_csv(f"{xs.CONFIG['io']['livraison']}dataset-metadata_ZGIEBV.csv")
+                with open(f"{xs.CONFIG['io']['livraison']}dataset-metadata_{filename}.json", 'w') as fp:
+                    json.dump(out.attrs, fp)
+
+                for v in out.data_vars:
+                    if out.attrs['dataset:frequency'] not in v:
+                        out = out.rename({v: f"{v}_{out.attrs['dataset:frequency']}"})
+                        v = f"{v}_{out.attrs['dataset:frequency']}"
+
+                    df = out[v].swap_dims({"geom": "SIGLE"}).to_pandas()
+                    if isinstance(df, pd.Series):
+                        df = df.to_frame(name=v)
+                    if df.index.name != "SIGLE":
+                        df = df.T
+                    df.to_csv(f"{xs.CONFIG['io']['livraison']}{v}_{filename}.csv")
+
+                    with open(f"{xs.CONFIG['io']['livraison']}variable-metadata_{v}_{filename}.json", 'w') as fp:
+                        json.dump(out[v].attrs, fp)
 
 
 if __name__ == '__main__':

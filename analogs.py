@@ -41,7 +41,7 @@ def main():
                     perf.attrs["cat:processing_level"] = f"{warming_level}-{perf.attrs['cat:processing_level']}"
 
                     filename = f"{xs.CONFIG['io']['stats']}{perf.attrs['cat:id']}_{perf.attrs['cat:processing_level']}.zarr"
-                    xs.save_to_zarr(perf, filename=filename)
+                    xs.save_to_zarr(perf, filename=filename, mode='o')
                     pcat.update_from_ds(perf, path=filename)
 
     # if xs.CONFIG["tasks"]["stats"]:
@@ -87,7 +87,7 @@ def main():
     #                     xs.save_to_zarr(deltas, filename=filename, mode="o")
     #                     pcat.update_from_ds(deltas, path=filename)
 
-    if xs.CONFIG["tasks"]["construct"]:
+    if xs.CONFIG["tasks"]["construct_hydro"]:
         def _fig(deltas_pct, wl, for_vm=None):
             proj = cartopy.crs.PlateCarree()
             shp = gpd.read_file(f"{xs.CONFIG['gis']}atlas2022/AtlasHydroclimatique_2022.shp")
@@ -225,6 +225,96 @@ def main():
                             pcat.update_from_ds(deltas, path=filename)
                             filename = f"{xs.CONFIG['io']['analogs']}{analog_reconstruct.attrs['cat:id']}_{analog_reconstruct.attrs['cat:processing_level']}_{deltas.attrs['cat:xrfreq']}.zarr"
                             xs.save_to_zarr(analog_reconstruct, filename=filename, mode="o")
+                            pcat.update_from_ds(analog_reconstruct, path=filename)
+
+    if xs.CONFIG["tasks"]["construct_climate"]:
+        for target_year in xs.CONFIG["analogs"]["targets"]:
+            for xrfreq in pcat.search(type="reconstruction", domain="ZGIEBV").unique("xrfreq"):
+                if xrfreq != "fx":
+                    # Reference
+                    ind_ref = pcat.search(type="reconstruction", domain="ZGIEBV", processing_level=["extracted", "indicators"], xrfreq=xrfreq).to_dask()
+                    [ind_ref[c].load() for c in ind_ref.coords]
+                    if xrfreq == "MS":
+                        pr_ref = pcat.search(source="CHIRPS2.0", xrfreq=xrfreq).to_dask()
+                        ind_ref["precip_accumulation_mon"] = pr_ref["pr_mon"]
+                    elif xrfreq == "AS-DEC":
+                        pr_ref = pcat.search(source="CHIRPS2.0", xrfreq=xrfreq).to_dask()
+                        ind_ref["precip_accumulation_yr"] = pr_ref["pr_yr"]
+                    if xrfreq in ["MS", "D"]:
+                        target_ref = ind_ref.sel(time=slice(f"{target_year-1}-12", f"{target_year}-11"))
+                    elif xrfreq == "AS-DEC":
+                        target_ref = ind_ref.sel(time=slice(f"{target_year - 1}", f"{target_year - 1}")).squeeze().drop_vars(["time"])
+                    else:
+                        raise ValueError
+
+                    # Historical analog
+                    perf = sort_analogs(pcat.search(processing_level=f"0.91-performance-vs-{target_year}").to_dask().rmse)
+                    analog_hist = []
+                    for i in range(5):
+                        member = str(perf.isel(stacked=i).realization.values).split(".")[0].split("_")[-1]
+                        analog_year = int(perf.isel(stacked=i).time.dt.year.values)
+                        ds = pcat.search(type="simulation", activity="ClimEx", processing_level="indicators-0.91" if xrfreq != "D" else "extracted-0.91", member=member, xrfreq=xrfreq).to_dask()
+                        if xrfreq == "D":
+                            ds = xs.clean_up(ds, convert_calendar_kwargs={"target": "default"})
+                        [ds[c].load() for c in ds.coords]
+                        if xrfreq in ["MS", "D"]:
+                            da = ds.sel(time=slice(f"{analog_year-1}-12", f"{analog_year}-11"))
+                            da["time"] = target_ref["time"]
+                            analog_hist.extend([da])
+                        elif xrfreq == "AS-DEC":
+                            analog_hist.extend([ds.sel(time=slice(str(analog_year - 1), str(analog_year - 1))).squeeze().drop_vars(["time"])])
+                        else:
+                            raise ValueError
+
+                    for warming_level in xs.CONFIG["storylines"]["warming_levels"]:
+                        if warming_level != 0.91:
+                            # Analogs
+                            perf = sort_analogs(pcat.search(processing_level=f"{warming_level}-performance-vs-{target_year}").to_dask().rmse)
+                            analog_fut = []
+                            for i in range(5):
+                                member = str(perf.isel(stacked=i).realization.values).split(".")[0].split("_")[-1]
+                                analog_year = int(perf.isel(stacked=i).time.dt.year.values)
+                                ds = pcat.search(type="simulation", activity="ClimEx", processing_level=f"indicators-{warming_level}" if xrfreq != "D" else f"extracted-{warming_level}", member=member, xrfreq=xrfreq).to_dask()
+                                if xrfreq == "D":
+                                    ds = xs.clean_up(ds, convert_calendar_kwargs={"target": "default"})
+                                [ds[c].load() for c in ds.coords]
+                                if xrfreq in ["MS", "D"]:
+                                    da = ds.sel(time=slice(f"{analog_year-1}-12", f"{analog_year}-11"))
+                                    da["time"] = target_ref["time"]
+                                    analog_fut.extend([da])
+                                elif xrfreq == "AS-DEC":
+                                    analog_fut.extend([ds.sel(time=slice(str(analog_year - 1), str(analog_year - 1))).squeeze().drop_vars(["time"])])
+                                else:
+                                    analog_fut.extend([ds.sel(time=slice(str(analog_year), str(analog_year))).squeeze().drop_vars(["time"])])
+
+                            kind = {v: "%" if v not in ["tg_mean_mon", "tg_mean_yr", "tasmax"] else "+" for v in analog_fut[0].data_vars}
+
+                            with xr.set_options(keep_attrs=True):
+                                if xrfreq != "D":
+                                    deltas = xs.compute_deltas(xr.concat(analog_fut, dim="realization").mean(dim="realization"),
+                                                               xr.concat(analog_hist, dim="realization").mean(dim="realization"), kind=kind, rename_variables=False, to_level=f"deltas-{target_year}-{warming_level}")
+                                else:
+                                    with xr.set_options(keep_attrs=True):
+                                        deltas = xr.concat(analog_fut, dim="realization").mean(dim="realization") - xr.concat(analog_hist, dim="realization").mean(dim="realization")
+                                        deltas = deltas.rolling(dim={"time": 30}, min_periods=1, center=True).mean()
+                                    deltas.attrs = analog_hist[0].attrs
+                                    deltas.attrs["cat:processing_level"] = f"deltas-{target_year}-{warming_level}"
+                                    deltas["tasmax"].attrs["delta_kind"] = "absolute"
+                                deltas.attrs["cat:member"] = "5member-mean"
+                                deltas.attrs["cat:domain"] = "ZGIEBV"
+                                deltas.attrs["cat:id"] = xs.catalog.generate_id(deltas)[0]
+
+                                analog_reconstruct = xr.Dataset()
+                                for v in deltas.data_vars:
+                                    analog_reconstruct[v] = target_ref[v] + target_ref[v] * deltas[v] / 100 if deltas[v].attrs["delta_kind"] == "percentage" else target_ref[v] + deltas[v]
+                                analog_reconstruct.attrs = target_ref.attrs
+                                analog_reconstruct.attrs["cat:processing_level"] = f"analog-{target_year}-{warming_level}"
+
+                            filename = f"{xs.CONFIG['io']['analogs']}{deltas.attrs['cat:id']}_{deltas.attrs['cat:processing_level']}_{deltas.attrs['cat:domain']}_{deltas.attrs['cat:xrfreq']}.zarr"
+                            xs.save_to_zarr(deltas, filename=filename, mode="a")
+                            pcat.update_from_ds(deltas, path=filename)
+                            filename = f"{xs.CONFIG['io']['analogs']}{analog_reconstruct.attrs['cat:id']}_{analog_reconstruct.attrs['cat:processing_level']}_{analog_reconstruct.attrs['cat:domain']}_{analog_reconstruct.attrs['cat:xrfreq']}.zarr"
+                            xs.save_to_zarr(analog_reconstruct, filename=filename, mode="a")
                             pcat.update_from_ds(analog_reconstruct, path=filename)
 
 

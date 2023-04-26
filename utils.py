@@ -35,9 +35,11 @@ def sort_analogs(da):
 
 def atlas_radeau_common():
     stations_radeau = gpd.read_file(f"{xs.CONFIG['gis']}RADEAU/CONSOM_SURF_BV_CF1_WGS84.shp")["BV_ID"]
-    # Fix IDs
-    stations_radeau = stations_radeau.str[0:3].str.cat(stations_radeau.str[4:])
+    stations_radeau = stations_radeau.str[0:3].str.cat(stations_radeau.str[4:])  # Fix IDs
+
     stations_atlas = pd.read_csv(f"{xs.CONFIG['dpphc']['portrait']}Metadata_Portrait.csv", encoding="ISO-8859-1")
+    stations_atlas = stations_atlas.loc[stations_atlas["MASQUE"] != 0]  # Remove invalid/fake stations
+
     stations = stations_atlas.loc[stations_atlas["ATLAS2018"].isin(stations_radeau)]
     # When an old reach is now covered by multiple, keep only the largest one
     stations = stations.sort_values('SUPERFICIE_TRONCON_num_km2')
