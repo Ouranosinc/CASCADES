@@ -171,8 +171,12 @@ def main():
                 ds_dict = pcat.search(processing_level=f"{dataset}.*", domain="ZGIEBV").to_dataset_dict()
 
             for key, ds in ds_dict.items():
-                out = xs.clean_up(ds, variables_and_units=xs.CONFIG["variables_and_units"], change_attr_prefix="dataset:",
-                                  attrs_to_remove={"global": ["cat:_data_format_", "intake_esm_dataset_key"]})
+                if "delta" not in key:
+                    out = xs.clean_up(ds, variables_and_units=xs.CONFIG["variables_and_units"], change_attr_prefix="dataset:",
+                                      attrs_to_remove={"global": ["cat:_data_format_", "intake_esm_dataset_key"]})
+                else:
+                    out = xs.clean_up(ds, change_attr_prefix="dataset:",
+                                      attrs_to_remove={"global": ["cat:_data_format_", "intake_esm_dataset_key"]})
 
                 # Prepare CSV
                 if dataset == "ref":

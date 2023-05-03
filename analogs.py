@@ -5,12 +5,7 @@ import xclim
 import xclim.indices
 import xscen as xs
 import xskillscore as xss
-import matplotlib.pyplot as plt
-import geopandas as gpd
-import cartopy
-import matplotlib
-import os
-from xclim.sdba.utils import ecdf
+from copy import deepcopy
 
 import figures
 from utils import get_target_region, get_stations_within_target_region, sort_analogs
@@ -88,45 +83,45 @@ def main():
     #                     pcat.update_from_ds(deltas, path=filename)
 
     if xs.CONFIG["tasks"]["construct_hydro"]:
-        def _fig(deltas_pct, wl, for_vm=None):
-            proj = cartopy.crs.PlateCarree()
-            shp = gpd.read_file(f"{xs.CONFIG['gis']}atlas2022/AtlasHydroclimatique_2022.shp")
-            shp = shp.set_index("TRONCON")
-
-            ii = 1
-            plt.figure(figsize=(35, 15))
-            for vv in deltas_pct.data_vars:
-                if for_vm is None:
-                    cmap = 'RdBu' if vv not in ['season_end', 'season_length', 'days_under_7q2', 'max_consecutive_days_under_7q2',
-                                                'season_histend', 'season_histlength', 'days_under_hist7q2',
-                                                'max_consecutive_days_under_hist7q2'] else 'RdBu_r'
-                    vm = 100 if deltas_pct[vv].attrs['delta_kind'] == "percentage" else 60
-                    bounds = np.array([-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1]) * vm
-                else:
-                    cmap = 'hot' if vv not in ['season_end', 'season_length', 'days_under_7q2', 'max_consecutive_days_under_7q2',
-                                               'season_histend', 'season_histlength', 'days_under_hist7q2',
-                                               'max_consecutive_days_under_hist7q2'] else 'hot_r'
-                    if deltas_pct[vv].attrs['units'] in ["m3 s-1", "m^3 s-1"]:
-                        vmin = float((for_vm[vv] / for_vm.drainage_area).compute().quantile(0.01).values)
-                        vmax = float((for_vm[vv] / for_vm.drainage_area).compute().quantile(0.99).values)
-                    else:
-                        vmin = float(for_vm[vv].compute().quantile(0.01).values)
-                        vmax = float(for_vm[vv].compute().quantile(0.99).values)
-                    bounds = np.arange(vmin, vmax + (vmax - vmin) / 10, (vmax - vmin) / 10)
-                norm = matplotlib.colors.BoundaryNorm(boundaries=bounds, ncolors=256)
-                ax = plt.subplot(3, 4, ii, projection=proj)
-                if deltas_pct[vv].attrs['units'] in ["m3 s-1", "m^3 s-1"]:
-                    data = deltas_pct[vv] / deltas_pct.drainage_area
-                    data.name = vv
-                    figures.templates.map_hydro(ax, data, shp=shp, lon_bnds=[-80, -58], lat_bnds=[44.75, 54.], legend=True, linewidth=1,
-                                                cmap=cmap, norm=norm)
-                else:
-                    figures.templates.map_hydro(ax, deltas_pct[vv], shp=shp, lon_bnds=[-80, -58], lat_bnds=[44.75, 54.], legend=True, linewidth=1,
-                                                cmap=cmap, norm=norm)
-                plt.title(f"{vv} ({deltas_pct[vv].attrs['units']})")
-                ii = ii + 1
-            plt.suptitle(f"{wl}")
-            plt.tight_layout()
+        # def _fig(deltas_pct, wl, for_vm=None):
+        #     proj = cartopy.crs.PlateCarree()
+        #     shp = gpd.read_file(f"{xs.CONFIG['gis']}atlas2022/AtlasHydroclimatique_2022.shp")
+        #     shp = shp.set_index("TRONCON")
+        #
+        #     ii = 1
+        #     plt.figure(figsize=(35, 15))
+        #     for vv in deltas_pct.data_vars:
+        #         if for_vm is None:
+        #             cmap = 'RdBu' if vv not in ['season_end', 'season_length', 'days_under_7q2', 'max_consecutive_days_under_7q2',
+        #                                         'season_histend', 'season_histlength', 'days_under_hist7q2',
+        #                                         'max_consecutive_days_under_hist7q2'] else 'RdBu_r'
+        #             vm = 100 if deltas_pct[vv].attrs['delta_kind'] == "percentage" else 60
+        #             bounds = np.array([-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1]) * vm
+        #         else:
+        #             cmap = 'hot' if vv not in ['season_end', 'season_length', 'days_under_7q2', 'max_consecutive_days_under_7q2',
+        #                                        'season_histend', 'season_histlength', 'days_under_hist7q2',
+        #                                        'max_consecutive_days_under_hist7q2'] else 'hot_r'
+        #             if deltas_pct[vv].attrs['units'] in ["m3 s-1", "m^3 s-1"]:
+        #                 vmin = float((for_vm[vv] / for_vm.drainage_area).compute().quantile(0.01).values)
+        #                 vmax = float((for_vm[vv] / for_vm.drainage_area).compute().quantile(0.99).values)
+        #             else:
+        #                 vmin = float(for_vm[vv].compute().quantile(0.01).values)
+        #                 vmax = float(for_vm[vv].compute().quantile(0.99).values)
+        #             bounds = np.arange(vmin, vmax + (vmax - vmin) / 10, (vmax - vmin) / 10)
+        #         norm = matplotlib.colors.BoundaryNorm(boundaries=bounds, ncolors=256)
+        #         ax = plt.subplot(3, 4, ii, projection=proj)
+        #         if deltas_pct[vv].attrs['units'] in ["m3 s-1", "m^3 s-1"]:
+        #             data = deltas_pct[vv] / deltas_pct.drainage_area
+        #             data.name = vv
+        #             figures.templates.map_hydro(ax, data, shp=shp, lon_bnds=[-80, -58], lat_bnds=[44.75, 54.], legend=True, linewidth=1,
+        #                                         cmap=cmap, norm=norm)
+        #         else:
+        #             figures.templates.map_hydro(ax, deltas_pct[vv], shp=shp, lon_bnds=[-80, -58], lat_bnds=[44.75, 54.], legend=True, linewidth=1,
+        #                                         cmap=cmap, norm=norm)
+        #         plt.title(f"{vv} ({deltas_pct[vv].attrs['units']})")
+        #         ii = ii + 1
+        #     plt.suptitle(f"{wl}")
+        #     plt.tight_layout()
 
         for target_year in xs.CONFIG["analogs"]["targets"]:
             for xrfreq in pcat.search(type="reconstruction-hydro", processing_level=f"indicators").unique("xrfreq"):
@@ -150,7 +145,7 @@ def main():
                     for i in range(5):
                         member = str(perf.isel(stacked=i).realization.values).split(".")[0].split("_")[-1]
                         analog_year = int(perf.isel(stacked=i).time.dt.year.values)
-                        ds = pcat.search(activity="ClimEx", processing_level="indicators-0.91", member=member, xrfreq=xrfreq).to_dask()
+                        ds = pcat.search(type="simulation-hydro", activity="ClimEx", processing_level="indicators-0.91", member=member, xrfreq=xrfreq).to_dask()
                         if xrfreq == "AS-JAN":
                             ds["season_length"] = ds["season_end"] - ds["season_start"]
                             ds["season_length"].attrs["units"] = "d"
@@ -172,7 +167,7 @@ def main():
                             for i in range(5):
                                 member = str(perf.isel(stacked=i).realization.values).split(".")[0].split("_")[-1]
                                 analog_year = int(perf.isel(stacked=i).time.dt.year.values)
-                                ds = pcat.search(activity="ClimEx", processing_level=f"indicators-{warming_level}", member=member, xrfreq=xrfreq).to_dask()
+                                ds = pcat.search(type="simulation-hydro", activity="ClimEx", processing_level=f"indicators-{warming_level}", member=member, xrfreq=xrfreq).to_dask()
                                 if xrfreq == "AS-JAN":
                                     ds["season_length"] = ds["season_end"] - ds["season_start"]
                                     ds["season_length"].attrs["units"] = "d"
@@ -209,16 +204,16 @@ def main():
                                 analog_reconstruct.attrs = target_ref.attrs
                                 analog_reconstruct.attrs["cat:processing_level"] = f"analog-{target_year}-{warming_level}"
 
-                            if xrfreq == "AS-JAN":
-                                _fig(deltas, f'deltas-{warming_level}')
-                                plt.savefig(f"{xs.CONFIG['io']['figures']}analogs/Analog-{target_year}_deltas-{warming_level}.png")
-                                plt.close()
-                                _fig(target_ref, f'Épisode réel - {target_year}', analog_reconstruct)
-                                plt.savefig(f"{xs.CONFIG['io']['figures']}analogs/Analog-{target_year}_RealEvent.png")
-                                plt.close()
-                                _fig(analog_reconstruct, f'Analogue +{warming_level}°C - {target_year}', analog_reconstruct)
-                                plt.savefig(f"{xs.CONFIG['io']['figures']}analogs/Analog-{target_year}_ReconstructedEvent-{warming_level}.png")
-                                plt.close()
+                            # if xrfreq == "AS-JAN":
+                            #     _fig(deltas, f'deltas-{warming_level}')
+                            #     plt.savefig(f"{xs.CONFIG['io']['figures']}analogs/Analog-{target_year}_deltas-{warming_level}.png")
+                            #     plt.close()
+                            #     _fig(target_ref, f'Épisode réel - {target_year}', analog_reconstruct)
+                            #     plt.savefig(f"{xs.CONFIG['io']['figures']}analogs/Analog-{target_year}_RealEvent.png")
+                            #     plt.close()
+                            #     _fig(analog_reconstruct, f'Analogue +{warming_level}°C - {target_year}', analog_reconstruct)
+                            #     plt.savefig(f"{xs.CONFIG['io']['figures']}analogs/Analog-{target_year}_ReconstructedEvent-{warming_level}.png")
+                            #     plt.close()
 
                             filename = f"{xs.CONFIG['io']['analogs']}{deltas.attrs['cat:id']}_{deltas.attrs['cat:processing_level']}_{deltas.attrs['cat:xrfreq']}.zarr"
                             xs.save_to_zarr(deltas, filename=filename, mode="o")
@@ -236,12 +231,16 @@ def main():
                     [ind_ref[c].load() for c in ind_ref.coords]
                     if xrfreq == "MS":
                         pr_ref = pcat.search(source="CHIRPS2.0", xrfreq=xrfreq).to_dask()
-                        ind_ref["precip_accumulation_mon"] = pr_ref["pr_mon"]
+                        new_precip = deepcopy(pr_ref["pr_mon"].fillna(ind_ref["precip_accumulation_mon"]))
+                        ind_ref["precip_accumulation_mon"] = new_precip
                     elif xrfreq == "AS-DEC":
                         pr_ref = pcat.search(source="CHIRPS2.0", xrfreq=xrfreq).to_dask()
-                        ind_ref["precip_accumulation_yr"] = pr_ref["pr_yr"]
+                        new_precip = deepcopy(pr_ref["pr_yr"].fillna(ind_ref["precip_accumulation_yr"]))
+                        ind_ref["precip_accumulation_yr"] = new_precip
                     if xrfreq in ["MS", "D"]:
                         target_ref = ind_ref.sel(time=slice(f"{target_year-1}-12", f"{target_year}-11"))
+                        if xrfreq == "D":
+                            target_ref = xs.clean_up(target_ref, convert_calendar_kwargs={"target": "noleap"})
                     elif xrfreq == "AS-DEC":
                         target_ref = ind_ref.sel(time=slice(f"{target_year - 1}", f"{target_year - 1}")).squeeze().drop_vars(["time"])
                     else:
@@ -254,8 +253,6 @@ def main():
                         member = str(perf.isel(stacked=i).realization.values).split(".")[0].split("_")[-1]
                         analog_year = int(perf.isel(stacked=i).time.dt.year.values)
                         ds = pcat.search(type="simulation", activity="ClimEx", processing_level="indicators-0.91" if xrfreq != "D" else "extracted-0.91", member=member, xrfreq=xrfreq).to_dask()
-                        if xrfreq == "D":
-                            ds = xs.clean_up(ds, convert_calendar_kwargs={"target": "default"})
                         [ds[c].load() for c in ds.coords]
                         if xrfreq in ["MS", "D"]:
                             da = ds.sel(time=slice(f"{analog_year-1}-12", f"{analog_year}-11"))
@@ -275,8 +272,6 @@ def main():
                                 member = str(perf.isel(stacked=i).realization.values).split(".")[0].split("_")[-1]
                                 analog_year = int(perf.isel(stacked=i).time.dt.year.values)
                                 ds = pcat.search(type="simulation", activity="ClimEx", processing_level=f"indicators-{warming_level}" if xrfreq != "D" else f"extracted-{warming_level}", member=member, xrfreq=xrfreq).to_dask()
-                                if xrfreq == "D":
-                                    ds = xs.clean_up(ds, convert_calendar_kwargs={"target": "default"})
                                 [ds[c].load() for c in ds.coords]
                                 if xrfreq in ["MS", "D"]:
                                     da = ds.sel(time=slice(f"{analog_year-1}-12", f"{analog_year}-11"))
@@ -310,11 +305,15 @@ def main():
                                 analog_reconstruct.attrs = target_ref.attrs
                                 analog_reconstruct.attrs["cat:processing_level"] = f"analog-{target_year}-{warming_level}"
 
+                            if xrfreq == "D":
+                                deltas = xs.clean_up(deltas.chunk({"time": -1}), convert_calendar_kwargs={"target": "default"}, missing_by_var={"tasmax": 'interpolate'})
+                                analog_reconstruct = xs.clean_up(analog_reconstruct.chunk({"time": -1}), convert_calendar_kwargs={"target": "default"})
+
                             filename = f"{xs.CONFIG['io']['analogs']}{deltas.attrs['cat:id']}_{deltas.attrs['cat:processing_level']}_{deltas.attrs['cat:domain']}_{deltas.attrs['cat:xrfreq']}.zarr"
-                            xs.save_to_zarr(deltas, filename=filename, mode="a")
+                            xs.save_to_zarr(deltas, filename=filename, mode="o")
                             pcat.update_from_ds(deltas, path=filename)
                             filename = f"{xs.CONFIG['io']['analogs']}{analog_reconstruct.attrs['cat:id']}_{analog_reconstruct.attrs['cat:processing_level']}_{analog_reconstruct.attrs['cat:domain']}_{analog_reconstruct.attrs['cat:xrfreq']}.zarr"
-                            xs.save_to_zarr(analog_reconstruct, filename=filename, mode="a")
+                            xs.save_to_zarr(analog_reconstruct, filename=filename, mode="o")
                             pcat.update_from_ds(analog_reconstruct, path=filename)
 
 

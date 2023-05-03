@@ -22,10 +22,10 @@ extract:
 
 analogs:
   targets:
-#    2021:
-#      region: ['OBVBM', 'OBVZB', 'GROBEC', 'SCABRIC', 'COBARIC', 'OBV du ChÃªne', 'OBVRLY',
-#               'CBE', 'CBJC', 'CARA', 'AGIR MaskinongÃ©', 'COBAMIL', 'COPERNIC', 'COVABAR',
-#               'OBV-Capitale', 'COGESAF', 'OBV CAPSA', 'COBAVER-VS', 'OBV Yamaska', 'SAMBBA']
+    2021:
+      region: ['OBVBM', 'OBVZB', 'GROBEC', 'SCABRIC', 'COBARIC', 'OBV du ChÃªne', 'OBVRLY',
+               'CBE', 'CBJC', 'CARA', 'AGIR MaskinongÃ©', 'COBAMIL', 'COPERNIC', 'COVABAR',
+               'OBV-Capitale', 'COGESAF', 'OBV CAPSA', 'COBAVER-VS', 'OBV Yamaska', 'SAMBBA']
     2018:
       region: ['OBV CÃ´te-du-Sud', 'CENG', 'CEGS', 'OBAKIR', 'OBVMR', 'OBVNEBSL', 'OBVFSJ']
     2012:
