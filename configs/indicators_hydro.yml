@@ -10,33 +10,42 @@ indicators:
 #    parameters:
 #      op: mean
 #      freq: AS-DEC
-  discharge_mean_mam:
-    base: discharge_stats
-    parameters:
-      op: mean
-      freq: AS-JAN
-      indexer:
-        season: MAM
-  discharge_mean_jja:
-    base: discharge_stats
-    parameters:
-      op: mean
-      freq: AS-JAN
-      indexer:
-        season: JJA
-  discharge_mean_son:
-    base: discharge_stats
-    parameters:
-      op: mean
-      freq: AS-JAN
-      indexer:
-        season: SON
-  7q2:
+#  discharge_mean_mam:
+#    base: discharge_stats
+#    parameters:
+#      op: mean
+#      freq: AS-JAN
+#      indexer:
+#        season: MAM
+#  discharge_mean_jja:
+#    base: discharge_stats
+#    parameters:
+#      op: mean
+#      freq: AS-JAN
+#      indexer:
+#        season: JJA
+#  discharge_mean_son:
+#    base: discharge_stats
+#    parameters:
+#      op: mean
+#      freq: AS-JAN
+#      indexer:
+#        season: SON
+  7qx:
     base: freq_analysis
     parameters:
       mode: min
       window: 7
-      t: 2
+      t: [2, 10]
       dist: lognorm
       indexer:
         month: [5, 6, 7, 8, 9, 10, 11]
+#  7q10:
+#    base: freq_analysis
+#    parameters:
+#      mode: min
+#      window: 7
+#      t: 10
+#      dist: lognorm
+#      indexer:
+#        month: [5, 6, 7, 8, 9, 10, 11]

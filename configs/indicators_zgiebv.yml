@@ -16,21 +16,21 @@ indicators:
     base: prcptot
     parameters:
       freq: AS-DEC
-#  evspsblpot_accumulation_mon:
-#    base: prcptot
-#    input:
-#      pr: evspsblpot
-#    parameters:
-#      freq: MS
-#    cf_attrs:
-#      long_name: Total accumulated evapotranspiration
-#      description: Total accumulated evapotranspiration.
-#  evspsblpot_accumulation_yr:
-#    base: prcptot
-#    input:
-#      pr: evspsblpot
-#    parameters:
-#      freq: AS-DEC
-#    cf_attrs:
-#      long_name: Total accumulated evapotranspiration
-#      description: Total accumulated evapotranspiration.
+  evspsblpot_accumulation_mon:
+    base: prcptot
+    input:
+      pr: evspsblpot
+    parameters:
+      freq: MS
+    cf_attrs:
+      long_name: Total accumulated evapotranspiration
+      description: Total accumulated evapotranspiration.
+  evspsblpot_accumulation_yr:
+    base: prcptot
+    input:
+      pr: evspsblpot
+    parameters:
+      freq: AS-DEC
+    cf_attrs:
+      long_name: Total accumulated evapotranspiration
+      description: Total accumulated evapotranspiration.

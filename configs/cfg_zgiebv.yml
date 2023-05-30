@@ -2,12 +2,25 @@ project:
   title: CASCADES
   description: Production de trames narratives pour le projet CASCADES
 
+datasets: [analog-2018-1.5, analog-2018-2, analog-2018-3, analog-2018-4, deltas-2018-1.5, deltas-2018-2, deltas-2018-3, deltas-2018-4,
+           analog-2012-1.5, analog-2012-2, analog-2012-3, analog-2012-4, deltas-2012-1.5, deltas-2012-2, deltas-2012-3, deltas-2012-4,
+           analog-2010-1.5, analog-2010-2, analog-2010-3, analog-2010-4, deltas-2010-1.5, deltas-2010-2, deltas-2010-3, deltas-2010-4,
+           analog-1995-1.5, analog-1995-2, analog-1995-3, analog-1995-4, deltas-1995-1.5, deltas-1995-2, deltas-1995-3, deltas-1995-4]
+#datasets: [analog-2018-0.91, analog-2018-1.5, analog-2018-2, analog-2018-3, analog-2018-4,
+#           analog-2012-0.91, analog-2012-1.5, analog-2012-2, analog-2012-3, analog-2012-4,
+#           analog-2010-0.91, analog-2010-1.5, analog-2010-2, analog-2010-3, analog-2010-4,
+#           analog-1995-0.91, analog-1995-1.5, analog-1995-2, analog-1995-3, analog-1995-4]
+#datasets: [analog-2018-0.91,
+#           analog-2012-0.91,
+#           analog-2010-0.91,
+#           analog-1995-0.91]
+
 tasks:
   extract: False
-  indicators: True
-  deltas: True
+  indicators: False
   evap: False
-  chirps: True
+  chirps: False
+  csv: True
 
 region:
   name: ZGIEBV
@@ -29,7 +42,7 @@ variables_and_units:
 
 storylines:
   ref_period: ['1992', '2021']
-  out_period: ['1992', '2021']
+  out_period: ['1981', '2021']
   # https://www.eea.europa.eu/data-and-maps/daviz/global-average-air-temperature-anomalies-6#tab-dashboard-01
   # Real 1991-2020 = +0.80°C  (mix NOAA, NASA, HadCRUT4)
   # https://www.metoffice.gov.uk/hadobs/hadcrut5/data/current/download.html
@@ -40,23 +53,23 @@ storylines:
 extract:
   search_data_catalogs_ref:
     variables_and_freqs:
-#      tasmax: D
+      tasmax: D
 #      tas: D
-      pr: D
+#      pr: D
     other_search_criteria:
       source: ERA5-Land
     periods: ['1980', '2021']
-#  search_data_catalogs_sim:
-#    variables_and_freqs:
+  search_data_catalogs_sim:
+    variables_and_freqs:
 #      pr: D
 #      tas: D
-#    other_search_criteria:
-#      activity: ClimEx
-#      processing_level: biasadjusted
-#    periods: ['1970', '2099']
-#    allow_conversion: True
-#    match_hist_and_fut: True
-##    restrict_members: {"ordered": 3}
+      tasmax: D
+    other_search_criteria:
+      activity: ClimEx
+      processing_level: biasadjusted
+    periods: ['1970', '2099']
+    allow_conversion: True
+    match_hist_and_fut: True
 
   extract_dataset:
     xr_combine_kwargs:
