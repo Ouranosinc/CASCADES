@@ -5,6 +5,7 @@ from distributed import Client
 import glob
 import xarray as xr
 import shutil
+from shapely.geometry import Point
 
 def get_target_region(target_year: int):
     shp = gpd.read_file(f"{xs.CONFIG['gis']}ZGIEBV/ZGIEBV_WGS84.shp")
@@ -14,7 +15,6 @@ def get_target_region(target_year: int):
 
 
 def get_stations_within_target_region(data, target_region):
-    from shapely.geometry import Point
     _pnts = [Point(data.lon[i], data.lat[i]) for i in range(len(data.lon))]
     pnts = gpd.GeoDataFrame(geometry=_pnts, index=data.station_id)
     pnts = pnts.assign(**{f"a{key}": pnts.within(geom) for key, geom in target_region.geometry.items()})

@@ -2,26 +2,25 @@ project:
   title: CASCADES
   description: Production de trames narratives pour le projet CASCADES
 
-#datasets: [analog-2018-1.5, analog-2018-2, analog-2018-3, analog-2018-4, deltas-2018-1.5, deltas-2018-2, deltas-2018-3, deltas-2018-4,
-#           analog-2012-1.5, analog-2012-2, analog-2012-3, analog-2012-4, deltas-2012-1.5, deltas-2012-2, deltas-2012-3, deltas-2012-4,
-#           analog-2010-1.5, analog-2010-2, analog-2010-3, analog-2010-4, deltas-2010-1.5, deltas-2010-2, deltas-2010-3, deltas-2010-4,
-#           analog-1995-1.5, analog-1995-2, analog-1995-3, analog-1995-4, deltas-1995-1.5, deltas-1995-2, deltas-1995-3, deltas-1995-4]
+datasets: [analog-2018-1.5, analog-2018-2, analog-2018-3, analog-2018-4, deltas-2018-1.5, deltas-2018-2, deltas-2018-3, deltas-2018-4,
+           analog-2012-1.5, analog-2012-2, analog-2012-3, analog-2012-4, deltas-2012-1.5, deltas-2012-2, deltas-2012-3, deltas-2012-4,
+           analog-2010-1.5, analog-2010-2, analog-2010-3, analog-2010-4, deltas-2010-1.5, deltas-2010-2, deltas-2010-3, deltas-2010-4,
+           analog-1995-1.5, analog-1995-2, analog-1995-3, analog-1995-4, deltas-1995-1.5, deltas-1995-2, deltas-1995-3, deltas-1995-4]
 #datasets: [analog-2018-0.91, analog-2018-1.5, analog-2018-2, analog-2018-3, analog-2018-4,
 #           analog-2012-0.91, analog-2012-1.5, analog-2012-2, analog-2012-3, analog-2012-4,
 #           analog-2010-0.91, analog-2010-1.5, analog-2010-2, analog-2010-3, analog-2010-4,
 #           analog-1995-0.91, analog-1995-1.5, analog-1995-2, analog-1995-3, analog-1995-4]
-datasets: [analog-2018-0.91,
-           analog-2012-0.91,
-           analog-2010-0.91,
-           analog-1995-0.91]
+#datasets: [analog-2018-0.91,
+#           analog-2012-0.91,
+#           analog-2010-0.91,
+#           analog-1995-0.91]
 
 tasks:
-  extract: True
+  extract: False
   indicators: False
   evap: False
   chirps: False
-  construct: False
-  csv: False
+  csv: True
 
 region:
   name: ZGIEBV

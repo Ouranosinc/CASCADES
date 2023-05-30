@@ -60,8 +60,9 @@ def main():
 
             overwrite = {"doy_14qmax": False, "season_start": False, "season_end": False, "season_histstart": False, "season_histend": False}
             if xs.CONFIG["tasks"]["additional_indicators"]:
-                if "days_under_7q2" in xs.CONFIG["additional_indicators"]:
-                    bool_under_eco = (ds.discharge < ind_dict["fx"]["7q2"].squeeze()).where(ds.discharge.time.dt.month.isin([5, 6, 7, 8, 9, 10, 11]),
+                if "days_under_7qx" in xs.CONFIG["additional_indicators"]:
+                    # 7Q2
+                    bool_under_eco = (ds.discharge < ind_dict["fx"]["7qx"].sel(return_period=2).squeeze()).where(ds.discharge.time.dt.month.isin([5, 6, 7, 8, 9, 10, 11]),
                                                                                             other=False)
                     ind_dict['AS-JAN']["days_under_7q2"] = bool_under_eco.resample({"time": "AS-JAN"}).sum(dim="time")
                     ind_dict['AS-JAN']["days_under_7q2"].attrs = {"long_name": "Number of days below the 7Q2.",
@@ -73,7 +74,7 @@ def main():
                                                                                   "units": "d"}
 
                     if wl not in [None, 0.91]:
-                        bool_under_eco = (ds.discharge < ind_hist["7q2"].squeeze()).where(ds.discharge.time.dt.month.isin([5, 6, 7, 8, 9, 10, 11]), other=False)
+                        bool_under_eco = (ds.discharge < ind_hist["7qx"].sel(return_period=2).squeeze()).where(ds.discharge.time.dt.month.isin([5, 6, 7, 8, 9, 10, 11]), other=False)
                         ind_dict['AS-JAN']["days_under_hist7q2"] = bool_under_eco.resample({"time": "AS-JAN"}).sum(dim="time")
                         ind_dict['AS-JAN']["days_under_hist7q2"].attrs = {"long_name": "Number of days below the 7Q2.",
                                                                           "description": "Streamflow under 7Q2 for month[5, 6, 7, 8, 9, 10, 11].",
@@ -82,6 +83,30 @@ def main():
                         ind_dict['AS-JAN']["max_consecutive_days_under_hist7q2"].attrs = {
                             "long_name": "Maximum consecutive number of days below the 7Q2.",
                             "description": "Maximum consecutive streamflow under 7Q2 for month[5, 6, 7, 8, 9, 10, 11].",
+                            "units": "d"}
+
+                    # 7Q10
+                    bool_under_eco = (ds.discharge < ind_dict["fx"]["7qx"].sel(return_period=10).squeeze()).where(ds.discharge.time.dt.month.isin([5, 6, 7, 8, 9, 10, 11]),
+                                                                                             other=False)
+                    ind_dict['AS-JAN']["days_under_7q10"] = bool_under_eco.resample({"time": "AS-JAN"}).sum(dim="time")
+                    ind_dict['AS-JAN']["days_under_7q10"].attrs = {"long_name": "Number of days below the 7Q10.",
+                                                                   "description": "Streamflow under 7Q10 for month[5, 6, 7, 8, 9, 10, 11].",
+                                                                   "units": "d"}
+                    ind_dict['AS-JAN']["max_consecutive_days_under_7q10"] = xcrl.longest_run(bool_under_eco, freq="AS-JAN")
+                    ind_dict['AS-JAN']["max_consecutive_days_under_7q10"].attrs = {"long_name": "Maximum consecutive number of days below the 7Q10.",
+                                                                                   "description": "Maximum consecutive streamflow under 7Q10 for month[5, 6, 7, 8, 9, 10, 11].",
+                                                                                   "units": "d"}
+
+                    if wl not in [None, 0.91]:
+                        bool_under_eco = (ds.discharge < ind_hist["7qx"].sel(return_period=10).squeeze()).where(ds.discharge.time.dt.month.isin([5, 6, 7, 8, 9, 10, 11]), other=False)
+                        ind_dict['AS-JAN']["days_under_hist7q10"] = bool_under_eco.resample({"time": "AS-JAN"}).sum(dim="time")
+                        ind_dict['AS-JAN']["days_under_hist7q10"].attrs = {"long_name": "Number of days below the 7Q10.",
+                                                                           "description": "Streamflow under 7Q10 for month[5, 6, 7, 8, 9, 10, 11].",
+                                                                           "units": "d"}
+                        ind_dict['AS-JAN']["max_consecutive_days_under_hist7q10"] = xcrl.longest_run(bool_under_eco, freq="AS-JAN")
+                        ind_dict['AS-JAN']["max_consecutive_days_under_hist7q10"].attrs = {
+                            "long_name": "Maximum consecutive number of days below the 7Q2.",
+                            "description": "Maximum consecutive streamflow under 7Q10 for month[5, 6, 7, 8, 9, 10, 11].",
                             "units": "d"}
 
                 if "7qmin" in xs.CONFIG["additional_indicators"]:
@@ -245,14 +270,14 @@ def main():
 
     if xs.CONFIG["tasks"]["extract"]:
         if "ref" in xs.CONFIG["datasets"]:
-            if not pcat.exists_in_cat(type="reconstruction-hydro", processing_level="indicators"):
-                # Open the reference
-                cat = hcat.search(type="reconstruction-hydro", processing_level="raw")
-                if not os.path.isdir(f"{xs.CONFIG['tmp_rechunk']}{cat.unique('id')[0]}.zarr"):
-                    fix_infocrue(cat)
+            # if not pcat.exists_in_cat(type="reconstruction-hydro", processing_level="indicators"):
+            # Open the reference
+            cat = hcat.search(type="reconstruction-hydro", processing_level="raw")
+            if not os.path.isdir(f"{xs.CONFIG['tmp_rechunk']}{cat.unique('id')[0]}.zarr"):
+                fix_infocrue(cat)
 
-                with Client(**xs.CONFIG["dask"]) as c:
-                    _extract_func()
+            with Client(**xs.CONFIG["dask"]) as c:
+                _extract_func()
 
         if len(set(xs.CONFIG["datasets"]).difference(["ref"])) > 0:
             for wl in xs.CONFIG["storylines"]["warming_levels"]:
@@ -268,7 +293,7 @@ def main():
                 if len(analogs) > 0:
                     for a in analogs.keys():
                         # Open the simulation
-                        cat = hcat.search(type="simulation-hydro", processing_level="raw", member=a.split("_")[-1])
+                        cat = hcat.search(type="simulation-hydro", processing_level="raw", member=a.split("_")[-1], impact_model_member="MG24HQ")
                         if not os.path.isdir(f"{xs.CONFIG['tmp_rechunk']}{cat.unique('id')[0]}.zarr"):
                             fix_infocrue(cat)
 
@@ -422,6 +447,65 @@ def main():
 
                     with open(f"{xs.CONFIG['io']['livraison']}variable-metadata_{v}_{filename}.json", 'w') as fp:
                         json.dump(ds[v].attrs, fp)
+
+    if xs.CONFIG["tasks"]["extract_all"]:
+        with open(f"{xs.CONFIG['gis']}ZGIEBV/ZGIEBV_per_reach.json", 'r') as fp:
+            tmp = json.load(fp)
+        regions = {}
+        for k, v in tmp.items():
+            for vv in v:
+                regions[vv] = k
+        for dataset in xs.CONFIG["datasets"]:
+            if "ref" in dataset:
+                ds_dict = pcat.search(id=".*Portrait.*", processing_level="indicators" if "temporalblend" not in dataset else "temporalblend-indicators").to_dataset_dict()
+            else:
+                ds_dict = pcat.search(type=".*hydro.*", processing_level=f"{dataset}.*").to_dataset_dict()
+
+            for key, ds in ds_dict.items():
+                if (ds.attrs["cat:xrfreq"] == "AS-JAN") and (dataset == "ref"):
+                    ds["season_length"] = ds["season_end"] - ds["season_start"]
+                    ds["season_length"].attrs["units"] = "d"
+                # load coordinates and subset
+                [ds[c].load() for c in ds.coords]
+                stations_atlas = pd.read_csv(f"{xs.CONFIG['dpphc']['portrait']}Metadata_Portrait.csv", encoding="ISO-8859-1")
+                stations_atlas = stations_atlas.loc[stations_atlas["MASQUE"] != 0]  # Remove invalid/fake stations
+                ds = ds.where(ds.station_id.isin(list(stations_atlas["TRONCON_ID"])), drop=True)
+
+                ds = ds.assign_coords({"SIGLE": ds.station_id.to_series().map(regions)}).squeeze()
+                # ds_zg = ds.groupby(ds.SIGLE).mean(dim="station")
+
+                # data = [ds, ds_zg]
+                data = [ds]
+                for i in range(len(data)):
+
+                    # Cleanup
+                    out = xs.clean_up(data[i], change_attr_prefix="dataset:", attrs_to_remove={"global": ["cat:_data_format_", "intake_esm_dataset_key"]})
+                    out.attrs['dataset:processing_level'] = out.attrs['dataset:processing_level'].replace("temporalblend-analog-2021-", "temporalblend-analog-")
+
+                    # Prepare CSV
+                    if "ref" in dataset:
+                        filename = f"{out.attrs['dataset:impact_model_source']}_{out.attrs['dataset:impact_model_project']}_{out.attrs['dataset:processing_level']}"
+                    else:
+                        filename = f"{out.attrs['dataset:impact_model_source']}_{out.attrs['dataset:impact_model_project']}_{out.attrs['dataset:processing_level']}degC"
+
+                    # Write some metadata
+                    os.makedirs(xs.CONFIG['io']['livraison'], exist_ok=True)
+                    with open(f"{xs.CONFIG['io']['livraison']}dataset-metadata_{filename}.json", 'w') as fp:
+                        json.dump(out.attrs, fp)
+
+                    for v in out.data_vars:
+                        if i == 0:
+                            df = out[v].swap_dims({"station": "station_id"}).to_pandas()
+                        else:
+                            df = out[v].to_pandas()
+                        if isinstance(df, pd.Series):
+                            df = df.to_frame(name=v)
+                        if df.index.name != ("station_id" if i == 0 else "SIGLE"):
+                            df = df.T
+                        df.to_csv(f"{xs.CONFIG['io']['livraison']}{v}_{filename}_{'ATLAS-PRIO2021' if i == 0 else 'ZGIEBV'}.csv")
+
+                        with open(f"{xs.CONFIG['io']['livraison']}variable-metadata_{v}_{filename}.json", 'w') as fp:
+                            json.dump(out[v].attrs, fp)
 
 
 if __name__ == '__main__':
