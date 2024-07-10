@@ -6,7 +6,7 @@ tasks:
   identify: False
   construct_hydro: False
   construct_climate: False
-  construct_blend: True
+  construct_blend: False
 
 storylines:
   ref_period: ['1992', '2021']

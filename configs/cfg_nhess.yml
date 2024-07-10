@@ -1,0 +1,23 @@
+storylines:
+  n_analogs: 10
+  ref_period: ['1992', '2021']
+  warming_levels: [0.91, 2, 3]
+  target_years: [2021] #[2021, 2018, 2012, 2010]
+
+analogs:
+  targets:
+    all:
+      region: [ 'OBVAJ', 'OBVT', 'ABV des 7', 'COBALI', 'OBVRPNS', 'ABRINORD', 'COBAVER-VS', 'COBAMIL', 'CARA', 'OBVZB', 'AGIR MaskinongÃ©', 'OBVRLY',
+                'BVSM', 'SAMBBA', 'OBV CAPSA', 'OBV-Capitale', 'CBJC', 'OBV-CM', 'OBVS', 'OBVLSJ', 'OBVHCN', 'OBVM', 'OBVD', 'SCABRIC', 'COVABAR', 'OBVBM', 'OBV Yamaska',
+                'COGESAF', 'COPERNIC', 'GROBEC', 'OBV du ChÃªne', 'COBARIC', 'CBE', 'OBV CÃ´te-du-Sud', 'OBAKIR', 'OBVFSJ', 'OBVNEBSL', 'OBVMR', 'CEGS', 'CENG' ]
+
+  compute_criteria:
+    criteria: [["spei6", 5], ["spei6", 10], ["spei3", 5], ["spei3", 6], ["spei3", 7], ["spei3", 8], ["spei3", 9], ["spei3", 10], ["spei3", 11]]
+    weights_2_1: [ 1, 0.33, 0.1 ]
+
+  hydro: [doy_14qmax, 14qmax, season_start, season_end, season_length, discharge_mean_mam, discharge_mean_jja, discharge_mean_son, 7qmin, days_under_7q2, max_consecutive_days_under_7q2]
+
+dask:
+  n_workers: 5
+  threads_per_worker: 3
+  memory_limit: 20GB
