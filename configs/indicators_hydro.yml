@@ -1,36 +1,36 @@
 realm: land
 indicators:
-#  discharge_mean_mon:
-#    base: discharge_stats
-#    parameters:
-#      op: mean
-#      freq: MS
-#  discharge_mean_yr:
-#    base: discharge_stats
-#    parameters:
-#      op: mean
-#      freq: AS-DEC
-#  discharge_mean_mam:
-#    base: discharge_stats
-#    parameters:
-#      op: mean
-#      freq: AS-JAN
-#      indexer:
-#        season: MAM
-#  discharge_mean_jja:
-#    base: discharge_stats
-#    parameters:
-#      op: mean
-#      freq: AS-JAN
-#      indexer:
-#        season: JJA
-#  discharge_mean_son:
-#    base: discharge_stats
-#    parameters:
-#      op: mean
-#      freq: AS-JAN
-#      indexer:
-#        season: SON
+  discharge_mean_mon:
+    base: discharge_stats
+    parameters:
+      op: mean
+      freq: MS
+  discharge_mean_yr:
+    base: discharge_stats
+    parameters:
+      op: mean
+      freq: AS-DEC
+  discharge_mean_mam:
+    base: discharge_stats
+    parameters:
+      op: mean
+      freq: AS-JAN
+      indexer:
+        season: MAM
+  discharge_mean_jja:
+    base: discharge_stats
+    parameters:
+      op: mean
+      freq: AS-JAN
+      indexer:
+        season: JJA
+  discharge_mean_son:
+    base: discharge_stats
+    parameters:
+      op: mean
+      freq: AS-JAN
+      indexer:
+        season: SON
   7qx:
     base: freq_analysis
     parameters:
